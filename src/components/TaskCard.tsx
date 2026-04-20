@@ -49,11 +49,8 @@ export function TaskCard({ task, steps, comments }: Props) {
     await supabase.from("tasks").update({ status: newStatus }).eq("id", task.id);
   }
 
-  async function updateField(field: keyof Task, value: unknown) {
-    const { error } = await supabase
-      .from("tasks")
-      .update({ [field]: value })
-      .eq("id", task.id);
+  async function updateField(patch: Partial<Task>) {
+    const { error } = await supabase.from("tasks").update(patch).eq("id", task.id);
     if (error) toast.error("שגיאה בעדכון");
   }
 
@@ -218,7 +215,7 @@ export function TaskCard({ task, steps, comments }: Props) {
                 </label>
                 <Select
                   value={task.status}
-                  onValueChange={(v) => updateField("status", v)}
+                  onValueChange={(v) => updateField({ status: v })}
                 >
                   <SelectTrigger className="h-9 bg-card">
                     <SelectValue />
@@ -238,7 +235,7 @@ export function TaskCard({ task, steps, comments }: Props) {
                 </label>
                 <Select
                   value={task.priority}
-                  onValueChange={(v) => updateField("priority", v)}
+                  onValueChange={(v) => updateField({ priority: v })}
                 >
                   <SelectTrigger className="h-9 bg-card">
                     <SelectValue />
@@ -258,7 +255,7 @@ export function TaskCard({ task, steps, comments }: Props) {
                 </label>
                 <Select
                   value={task.department ?? ""}
-                  onValueChange={(v) => updateField("department", v)}
+                  onValueChange={(v) => updateField({ department: v })}
                 >
                   <SelectTrigger className="h-9 bg-card">
                     <SelectValue />
@@ -281,7 +278,9 @@ export function TaskCard({ task, steps, comments }: Props) {
               <Input
                 type="date"
                 value={task.deadline ?? ""}
-                onChange={(e) => updateField("deadline", e.target.value || null)}
+                onChange={(e) =>
+                  updateField({ deadline: e.target.value || null })
+                }
                 className="bg-card"
                 dir="ltr"
               />
