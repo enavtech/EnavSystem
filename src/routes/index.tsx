@@ -1,13 +1,20 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { generateSlug } from "@/lib/plans";
-import { Plus, ExternalLink, Sparkles } from "lucide-react";
+import { generateSlug, parseSheetRows, type ParsedPlan } from "@/lib/plans";
+import { Plus, ExternalLink, Sparkles, Upload, FileSpreadsheet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -18,6 +25,11 @@ function Index() {
   const [name, setName] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [preview, setPreview] = useState<ParsedPlan | null>(null);
+  const [previewName, setPreviewName] = useState("");
+  const [previewSubtitle, setPreviewSubtitle] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -47,6 +59,96 @@ function Index() {
     navigate({ to: "/p/$slug", params: { slug } });
   }
 
+  async function handleFile(file: File) {
+    setImporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      // Prefer sheet that contains the task header
+      let chosen = wb.SheetNames[0];
+      for (const sn of wb.SheetNames) {
+        const ws = wb.Sheets[sn];
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" });
+        const joined = rows
+          .slice(0, 15)
+          .map((r) => (r as unknown[]).map((c) => String(c ?? "")).join("|"))
+          .join("\n");
+        if (joined.includes("מחלקה") && joined.includes("משימה")) {
+          chosen = sn;
+          break;
+        }
+      }
+      const ws = wb.Sheets[chosen];
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "", raw: true });
+      const parsed = parseSheetRows(rows as unknown[][]);
+      if (parsed.tasks.length === 0) {
+        toast.error("לא נמצאו משימות בקובץ");
+        return;
+      }
+      setPreview(parsed);
+      setPreviewName(parsed.name);
+      setPreviewSubtitle(parsed.subtitle ?? "");
+    } catch (err) {
+      console.error(err);
+      toast.error("שגיאה בקריאת הקובץ");
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function confirmImport() {
+    if (!preview) return;
+    if (!previewName.trim()) {
+      toast.error("חובה שם לתוכנית");
+      return;
+    }
+    setImporting(true);
+    const slug = generateSlug(previewName);
+    const { data: planRow, error: pe } = await supabase
+      .from("plans")
+      .insert({ slug, name: previewName.trim(), subtitle: previewSubtitle.trim() || null })
+      .select()
+      .single();
+    if (pe || !planRow) {
+      setImporting(false);
+      toast.error("שגיאה ביצירת תוכנית: " + (pe?.message ?? ""));
+      return;
+    }
+    const taskRows = preview.tasks.map((t, i) => ({
+      plan_id: planRow.id,
+      title: t.title,
+      department: t.department,
+      priority: t.priority,
+      status: t.status,
+      deadline: t.deadline,
+      note: t.note,
+      position: i,
+    }));
+    const { data: insertedTasks, error: te } = await supabase
+      .from("tasks")
+      .insert(taskRows)
+      .select();
+    if (te) {
+      setImporting(false);
+      toast.error("שגיאה בשמירת משימות: " + te.message);
+      return;
+    }
+    const stepRows: Array<{ task_id: string; content: string; position: number }> = [];
+    (insertedTasks ?? []).forEach((row, i) => {
+      const t = preview.tasks[i];
+      t.steps.forEach((s, j) => stepRows.push({ task_id: row.id, content: s, position: j }));
+    });
+    if (stepRows.length > 0) {
+      await supabase.from("task_steps").insert(stepRows);
+    }
+    setImporting(false);
+    setPreview(null);
+    toast.success(`יובאו ${preview.tasks.length} משימות`);
+    navigate({ to: "/p/$slug", params: { slug } });
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Toaster position="top-center" dir="rtl" />
@@ -65,7 +167,33 @@ function Index() {
         </header>
 
         <Card className="mb-8 p-6 shadow-[var(--shadow-elevated)]">
-          <h2 className="mb-4 text-lg font-semibold">תוכנית חדשה</h2>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">תוכנית חדשה</h2>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileRef.current?.click()}
+              disabled={importing}
+            >
+              {importing ? (
+                <Loader2 className="ms-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="ms-2 h-4 w-4" />
+              )}
+              ייבוא מ-Excel / Sheets
+            </Button>
+          </div>
           <form onSubmit={createPlan} className="space-y-3">
             <Input
               placeholder="שם הלקוח / שם התוכנית"
@@ -83,6 +211,10 @@ function Index() {
               {creating ? "יוצר…" : "צור תוכנית"}
             </Button>
           </form>
+          <p className="mt-3 text-xs text-muted-foreground">
+            <FileSpreadsheet className="ms-1 inline h-3 w-3" />
+            מ-Google Sheets: קובץ ← הורדה ← Microsoft Excel (.xlsx) ואז העלו כאן
+          </p>
         </Card>
 
         <h2 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -120,6 +252,56 @@ function Index() {
           )}
         </div>
       </div>
+
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>תצוגה מקדימה של ייבוא</DialogTitle>
+          </DialogHeader>
+          {preview && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-3 text-sm">
+                זוהו <strong>{preview.tasks.length}</strong> משימות
+                {" · "}
+                {preview.tasks.reduce((a, t) => a + t.steps.length, 0)} תתי-משימות
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">שם התוכנית</label>
+                <Input value={previewName} onChange={(e) => setPreviewName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">תת-כותרת</label>
+                <Input value={previewSubtitle} onChange={(e) => setPreviewSubtitle(e.target.value)} />
+              </div>
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-border">
+                {preview.tasks.slice(0, 8).map((t, i) => (
+                  <div key={i} className="border-b border-border px-3 py-2 text-sm last:border-0">
+                    <div className="truncate font-medium">{t.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {t.department ?? "—"} · {t.priority}
+                      {t.deadline ? ` · ${t.deadline}` : ""}
+                    </div>
+                  </div>
+                ))}
+                {preview.tasks.length > 8 && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    ועוד {preview.tasks.length - 8} משימות…
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreview(null)} disabled={importing}>
+              ביטול
+            </Button>
+            <Button onClick={confirmImport} disabled={importing}>
+              {importing && <Loader2 className="ms-2 h-4 w-4 animate-spin" />}
+              צור תוכנית
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
