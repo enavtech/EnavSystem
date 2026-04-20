@@ -36,6 +36,10 @@ export const Route = createRootRoute({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "תוכניות עבודה שיתופיות" },
+      { name: "twitter:description", content: "ניהול תוכניות אסטרטגיות שיתופיות עם סנכרון בזמן אמת" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/11b69219-ab63-4c64-abb8-fa1131a8e7cc/id-preview-6a144f8d--29f05ff4-08cb-4fab-b6bc-f5e285f57546.lovable.app-1776676203376.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/11b69219-ab63-4c64-abb8-fa1131a8e7cc/id-preview-6a144f8d--29f05ff4-08cb-4fab-b6bc-f5e285f57546.lovable.app-1776676203376.png" },
     ],
     links: [
       {
