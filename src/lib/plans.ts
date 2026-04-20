@@ -91,3 +91,120 @@ export function setAuthorName(name: string) {
   if (typeof window === "undefined") return;
   localStorage.setItem("plan_author_name", name.trim() || "אורח");
 }
+
+export type ParsedTask = {
+  title: string;
+  department: string | null;
+  priority: string;
+  status: string;
+  deadline: string | null;
+  note: string | null;
+  steps: string[];
+};
+
+export type ParsedPlan = {
+  name: string;
+  subtitle: string | null;
+  tasks: ParsedTask[];
+};
+
+function normalizePriority(v: unknown): string {
+  const s = String(v ?? "").trim();
+  return (PRIORITIES as readonly string[]).includes(s) ? s : "בינונית";
+}
+
+function normalizeStatus(v: unknown): string {
+  const s = String(v ?? "").trim();
+  return (STATUSES as readonly string[]).includes(s) ? s : "לא התחיל";
+}
+
+function normalizeDepartment(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  return (DEPARTMENTS as readonly string[]).includes(s) ? s : s;
+}
+
+function toIsoDate(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  if (v instanceof Date) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, "0");
+    const d = String(v.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(v).trim();
+  // dd/mm/yyyy or dd.mm.yyyy
+  const m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (m) {
+    const [, d, mo, y] = m;
+    const yy = y.length === 2 ? `20${y}` : y;
+    return `${yy}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  // ISO already
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return toIsoDate(d);
+  return null;
+}
+
+function parseSteps(v: unknown): string[] {
+  if (!v) return [];
+  return String(v)
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*\d+[.)\-]\s*/, "").trim())
+    .filter(Boolean);
+}
+
+/**
+ * Parses an array of arrays (sheet rows) into a plan + tasks.
+ * Expects header row containing: מחלקה, משימה ראשית, יעד מדיד, תתי-משימות, עדיפות, דדליין, סטטוס, הערות
+ */
+export function parseSheetRows(rows: unknown[][]): ParsedPlan {
+  let name = "תוכנית מיובאת";
+  let subtitle: string | null = null;
+  let headerIdx = -1;
+
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    const row = rows[i] ?? [];
+    const joined = row.map((c) => String(c ?? "")).join("|");
+    if (joined.includes("מחלקה") && joined.includes("משימה")) {
+      headerIdx = i;
+      break;
+    }
+    const first = String(row[0] ?? "").trim();
+    if (i === 0 && first) name = first;
+    else if (i === 1 && first && !subtitle) subtitle = first;
+  }
+  if (headerIdx === -1) return { name, subtitle, tasks: [] };
+
+  const header = (rows[headerIdx] ?? []).map((c) => String(c ?? "").trim());
+  const idx = (label: string) => header.findIndex((h) => h.includes(label));
+  const cDept = idx("מחלקה");
+  const cTitle = idx("משימה");
+  const cGoal = idx("יעד");
+  const cSteps = idx("תתי");
+  const cPrio = idx("עדיפות");
+  const cDead = idx("דדליין");
+  const cStat = idx("סטטוס");
+  const cNote = idx("הערות");
+
+  const tasks: ParsedTask[] = [];
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i] ?? [];
+    const title = String(row[cTitle] ?? "").trim();
+    if (!title) continue;
+    const goal = cGoal >= 0 ? String(row[cGoal] ?? "").trim() : "";
+    const noteVal = cNote >= 0 ? String(row[cNote] ?? "").trim() : "";
+    const noteParts = [goal && `יעד: ${goal}`, noteVal].filter(Boolean);
+    tasks.push({
+      title,
+      department: cDept >= 0 ? normalizeDepartment(row[cDept]) : null,
+      priority: cPrio >= 0 ? normalizePriority(row[cPrio]) : "בינונית",
+      status: cStat >= 0 ? normalizeStatus(row[cStat]) : "לא התחיל",
+      deadline: cDead >= 0 ? toIsoDate(row[cDead]) : null,
+      note: noteParts.join("\n\n") || null,
+      steps: cSteps >= 0 ? parseSteps(row[cSteps]) : [],
+    });
+  }
+  return { name, subtitle, tasks };
+}
