@@ -292,37 +292,13 @@ export function TaskCard({ task, steps, comments }: Props) {
               </label>
               <div className="space-y-1.5">
                 {steps.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={s.done}
-                      onChange={() => toggleStep(s)}
-                      className="h-4 w-4 cursor-pointer accent-primary"
-                    />
-                    <Input
-                      value={s.content}
-                      onChange={(e) => {
-                        // optimistic-ish: blur to commit
-                      }}
-                      onBlur={(e) => {
-                        if (e.target.value !== s.content)
-                          updateStepContent(s.id, e.target.value);
-                      }}
-                      defaultValue={s.content}
-                      className={cn(
-                        "h-8 bg-card text-sm",
-                        s.done && "text-muted-foreground line-through"
-                      )}
-                    />
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-muted-foreground hover:text-urgent"
-                      onClick={() => deleteStep(s.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                  <StepRow
+                    key={s.id}
+                    step={s}
+                    onToggle={() => toggleStep(s)}
+                    onSave={(v) => updateStepContent(s.id, v)}
+                    onDelete={() => deleteStep(s.id)}
+                  />
                 ))}
                 <div className="flex items-center gap-2">
                   <Input
@@ -427,6 +403,63 @@ export function TaskCard({ task, steps, comments }: Props) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function StepRow({
+  step,
+  onToggle,
+  onSave,
+  onDelete,
+}: {
+  step: TaskStep;
+  onToggle: () => void;
+  onSave: (value: string) => void;
+  onDelete: () => void;
+}) {
+  const [value, setValue] = useState(step.content);
+  // Sync when remote update changes content (and we're not focused)
+  const [focused, setFocused] = useState(false);
+  if (!focused && value !== step.content && document.activeElement?.tagName !== "INPUT") {
+    // shallow re-sync
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="checkbox"
+        checked={step.done}
+        onChange={onToggle}
+        className="h-4 w-4 cursor-pointer accent-primary"
+      />
+      <Input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          if (value.trim() && value !== step.content) onSave(value.trim());
+          else if (!value.trim()) setValue(step.content);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        className={cn(
+          "h-8 bg-card text-sm",
+          step.done && "text-muted-foreground line-through"
+        )}
+      />
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7 text-muted-foreground hover:text-urgent"
+        onClick={onDelete}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
     </div>
   );
 }
