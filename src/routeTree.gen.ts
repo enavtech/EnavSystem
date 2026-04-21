@@ -13,7 +13,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
 import { Route as CTokenRouteImport } from './routes/c.$token'
-import { Route as PRouteImport } from './routes/p.'
 import { Route as PSlugDashboardRouteImport } from './routes/p.$slug.dashboard'
 
 const LoginRoute = LoginRouteImport.update({
@@ -36,11 +35,6 @@ const CTokenRoute = CTokenRouteImport.update({
   path: '/c/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PRoute = PRouteImport.update({
-  id: '/p/',
-  path: '/p/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PSlugDashboardRoute = PSlugDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -50,7 +44,6 @@ const PSlugDashboardRoute = PSlugDashboardRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/p/': typeof PRoute
   '/c/$token': typeof CTokenRoute
   '/p/$slug': typeof PSlugRouteWithChildren
   '/p/$slug/dashboard': typeof PSlugDashboardRoute
@@ -58,7 +51,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/p': typeof PRoute
   '/c/$token': typeof CTokenRoute
   '/p/$slug': typeof PSlugRouteWithChildren
   '/p/$slug/dashboard': typeof PSlugDashboardRoute
@@ -67,27 +59,19 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/p/': typeof PRoute
   '/c/$token': typeof CTokenRoute
   '/p/$slug': typeof PSlugRouteWithChildren
   '/p/$slug/dashboard': typeof PSlugDashboardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/login'
-    | '/p/'
-    | '/c/$token'
-    | '/p/$slug'
-    | '/p/$slug/dashboard'
+  fullPaths: '/' | '/login' | '/c/$token' | '/p/$slug' | '/p/$slug/dashboard'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/p' | '/c/$token' | '/p/$slug' | '/p/$slug/dashboard'
+  to: '/' | '/login' | '/c/$token' | '/p/$slug' | '/p/$slug/dashboard'
   id:
     | '__root__'
     | '/'
     | '/login'
-    | '/p/'
     | '/c/$token'
     | '/p/$slug'
     | '/p/$slug/dashboard'
@@ -96,7 +80,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
-  PRoute: typeof PRoute
   CTokenRoute: typeof CTokenRoute
   PSlugRoute: typeof PSlugRouteWithChildren
 }
@@ -131,13 +114,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/p/': {
-      id: '/p/'
-      path: '/p'
-      fullPath: '/p/'
-      preLoaderRoute: typeof PRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/p/$slug/dashboard': {
       id: '/p/$slug/dashboard'
       path: '/dashboard'
@@ -161,10 +137,18 @@ const PSlugRouteWithChildren = PSlugRoute._addFileChildren(PSlugRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
-  PRoute: PRoute,
   CTokenRoute: CTokenRoute,
   PSlugRoute: PSlugRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
