@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          actor_name: string
+          created_at: string
+          details: Json | null
+          entity: string
+          id: string
+          plan_id: string
+          task_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_name?: string
+          created_at?: string
+          details?: Json | null
+          entity?: string
+          id?: string
+          plan_id: string
+          task_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_name?: string
+          created_at?: string
+          details?: Json | null
+          entity?: string
+          id?: string
+          plan_id?: string
+          task_id?: string | null
+        }
+        Relationships: []
+      }
+      app_settings: {
+        Row: {
+          admin_password_hash: string | null
+          created_at: string
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          admin_password_hash?: string | null
+          created_at?: string
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          admin_password_hash?: string | null
+          created_at?: string
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           author_name: string
@@ -49,27 +103,33 @@ export type Database = {
       plans: {
         Row: {
           accent_color: string | null
+          archived: boolean
           created_at: string
           id: string
           name: string
+          share_token: string
           slug: string
           subtitle: string | null
           updated_at: string
         }
         Insert: {
           accent_color?: string | null
+          archived?: boolean
           created_at?: string
           id?: string
           name: string
+          share_token?: string
           slug: string
           subtitle?: string | null
           updated_at?: string
         }
         Update: {
           accent_color?: string | null
+          archived?: boolean
           created_at?: string
           id?: string
           name?: string
+          share_token?: string
           slug?: string
           subtitle?: string | null
           updated_at?: string
@@ -163,7 +223,24 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      app_settings_public: {
+        Row: {
+          admin_password_set: boolean | null
+          id: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          admin_password_set?: never
+          id?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          admin_password_set?: never
+          id?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
