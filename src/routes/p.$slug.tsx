@@ -1,7 +1,8 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { usePlanRealtime } from "@/hooks/usePlanRealtime";
 import { supabase } from "@/integrations/supabase/client";
+import { isAdmin } from "@/lib/admin-session";
 import { TaskCard } from "@/components/TaskCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,11 @@ export const Route = createFileRoute("/p/$slug")({
 function PlanPage() {
   const { slug } = Route.useParams();
   const { plan, tasks, steps, comments, loading } = usePlanRealtime(slug);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAdmin()) navigate({ to: "/login" });
+  }, [navigate]);
 
   const [filter, setFilter] = useState<"all" | "דחופה" | "גבוהה" | "בינונית" | "done">(
     "all"
