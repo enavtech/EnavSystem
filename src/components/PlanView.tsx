@@ -416,7 +416,128 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
           </form>
         )}
       </div>
+
+      {/* Plan colors dialog (admin only) */}
+      {isAdmin && (
+        <PlanColorsDialog
+          open={showColors}
+          onOpenChange={setShowColors}
+          planId={plan.id}
+          accent={accentColor}
+          statusColors={planStatusColors}
+        />
+      )}
     </div>
+  );
+}
+
+function PlanColorsDialog({
+  open,
+  onOpenChange,
+  planId,
+  accent,
+  statusColors,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  planId: string;
+  accent: string;
+  statusColors: Record<string, string> | null;
+}) {
+  const initialStatus = useMemo(() => {
+    const out: Record<string, string> = { ...DEFAULT_STATUS_COLORS };
+    STATUSES.forEach((s) => {
+      out[s] = getStatusColor(s, statusColors);
+    });
+    return out;
+  }, [statusColors]);
+
+  const [accentLocal, setAccentLocal] = useState(accent);
+  const [statusLocal, setStatusLocal] = useState<Record<string, string>>(initialStatus);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setAccentLocal(accent);
+      setStatusLocal(initialStatus);
+    }
+  }, [open, accent, initialStatus]);
+
+  async function save() {
+    setSaving(true);
+    const { error } = await supabase
+      .from("plans")
+      .update({ accent_color: accentLocal, status_colors: statusLocal })
+      .eq("id", planId);
+    setSaving(false);
+    if (error) toast.error("שגיאה: " + error.message);
+    else {
+      toast.success("הצבעים נשמרו");
+      onOpenChange(false);
+    }
+  }
+
+  function reset() {
+    setStatusLocal({ ...DEFAULT_STATUS_COLORS });
+    setAccentLocal("#2D4A6B");
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>צבעי התוכנית</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
+            <div>
+              <div className="text-sm font-medium text-foreground">צבע הלקוח</div>
+              <div className="text-xs text-muted-foreground">
+                ההדגשה במסך התוכנית ובכרטיס הלקוח
+              </div>
+            </div>
+            <ColorPicker value={accentLocal} onChange={setAccentLocal} />
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              צבעי סטטוס משימות
+            </div>
+            {STATUSES.map((s) => (
+              <div
+                key={s}
+                className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-3 w-3 rounded-full ring-1 ring-border"
+                    style={{ backgroundColor: statusLocal[s] }}
+                  />
+                  <span className="text-sm">{s}</span>
+                </div>
+                <ColorPicker
+                  value={statusLocal[s]}
+                  onChange={(c) => setStatusLocal({ ...statusLocal, [s]: c })}
+                  size="sm"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        <DialogFooter className="flex justify-between gap-2 sm:justify-between">
+          <Button variant="ghost" onClick={reset} disabled={saving}>
+            איפוס לברירת מחדל
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              ביטול
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? "שומר…" : "שמור"}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
