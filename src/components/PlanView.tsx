@@ -236,11 +236,14 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
         <header className="mb-5 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
           <div
             className="h-24 bg-gradient-to-br from-primary/12 via-card to-accent/30"
+            style={{
+              background: `linear-gradient(135deg, ${accentColor}18, transparent 60%)`,
+            }}
           >
             <div
               className="h-1 w-full"
               style={{
-                background: `linear-gradient(90deg, ${plan.accent_color ?? "#2D4A6B"}, oklch(0.6 0.13 220))`,
+                background: `linear-gradient(90deg, ${accentColor}, ${accentColor}99)`,
               }}
             />
           </div>
@@ -326,6 +329,7 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
               comments={comments[t.id] ?? []}
               isAdminView={isAdmin}
               planId={plan.id}
+              statusColors={planStatusColors}
             />
           ))}
           {filteredTasks.length === 0 && (
