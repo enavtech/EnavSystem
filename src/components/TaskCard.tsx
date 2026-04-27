@@ -25,14 +25,17 @@ import {
 import { ChevronDown, Trash2, Plus, MessageSquare, Check, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { InternalTasksPanel } from "@/components/InternalTasksPanel";
 
 interface Props {
   task: Task;
   steps: TaskStep[];
   comments: Comment[];
+  isAdminView?: boolean;
+  planId?: string;
 }
 
-export function TaskCard({ task, steps, comments }: Props) {
+export function TaskCard({ task, steps, comments, isAdminView, planId }: Props) {
   const [open, setOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(task.title);
   const [editingNote, setEditingNote] = useState(task.note ?? "");

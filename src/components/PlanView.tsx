@@ -296,6 +296,8 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
               task={t}
               steps={steps[t.id] ?? []}
               comments={comments[t.id] ?? []}
+              isAdminView={isAdmin}
+              planId={plan.id}
             />
           ))}
           {filteredTasks.length === 0 && (
