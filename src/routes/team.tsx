@@ -375,10 +375,21 @@ function TeamPage() {
           <div className="grid gap-3 md:grid-cols-4">
             {INTERNAL_STATUSES.map((s) => {
               const items = filteredTasks.filter((t) => t.status === s.id);
+              const col = internalStatusColor(s.id);
               return (
-                <div key={s.id} className="rounded-xl border border-border bg-muted/30 p-3">
+                <div
+                  key={s.id}
+                  className="overflow-hidden rounded-xl border border-border bg-muted/30 p-3"
+                  style={{ borderTop: `3px solid ${col}` }}
+                >
                   <div className="mb-3 flex items-center justify-between">
-                    <div className="text-sm font-semibold text-foreground">{s.label}</div>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: col }}
+                      />
+                      {s.label}
+                    </div>
                     <div className="rounded-full bg-card px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">
                       {items.length}
                     </div>
