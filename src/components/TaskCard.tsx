@@ -341,6 +341,10 @@ export function TaskCard({ task, steps, comments, isAdminView, planId }: Props) 
               />
             </div>
 
+            {isAdminView && planId && (
+              <InternalTasksPanel clientTaskId={task.id} planId={planId} />
+            )}
+
             <div>
               <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 תגובות והערות ({comments.length})
