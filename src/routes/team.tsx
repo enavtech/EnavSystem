@@ -370,7 +370,7 @@ function TeamPage() {
         {/* Views */}
         {tab === "kanban" && (
           <div className="grid gap-3 md:grid-cols-4">
-            {STATUSES.map((s) => {
+            {INTERNAL_STATUSES.map((s) => {
               const items = filteredTasks.filter((t) => t.status === s.id);
               return (
                 <div key={s.id} className="rounded-xl border border-border bg-muted/30 p-3">
@@ -620,7 +620,7 @@ function TeamPage() {
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {STATUSES.map((s) => (
+                      {INTERNAL_STATUSES.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -918,7 +918,7 @@ function InternalTaskCard({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {STATUSES.map((s) => (
+            {INTERNAL_STATUSES.map((s) => (
               <SelectItem key={s.id} value={s.id}>
                 {s.label}
               </SelectItem>
