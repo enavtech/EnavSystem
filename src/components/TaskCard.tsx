@@ -442,11 +442,13 @@ function StepRow({
   onDelete: () => void;
 }) {
   const [value, setValue] = useState(step.content);
-  // Sync when remote update changes content (and we're not focused)
   const [focused, setFocused] = useState(false);
-  if (!focused && value !== step.content && document.activeElement?.tagName !== "INPUT") {
-    // shallow re-sync
-  }
+
+  // Sync local value with remote when not actively editing.
+  useEffect(() => {
+    if (!focused) setValue(step.content);
+  }, [step.content, focused]);
+
   return (
     <div className="flex items-center gap-2">
       <input
