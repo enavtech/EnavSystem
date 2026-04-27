@@ -46,6 +46,7 @@ type PlanRow = {
   share_token: string;
   archived: boolean;
   updated_at: string;
+  accent_color: string | null;
 };
 
 type PlanStats = Record<
@@ -85,7 +86,7 @@ function Index() {
   async function loadPlans() {
     const { data: planRows } = await supabase
       .from("plans")
-      .select("id,slug,name,subtitle,share_token,archived,updated_at")
+      .select("id,slug,name,subtitle,share_token,archived,updated_at,accent_color")
       .order("updated_at", { ascending: false });
     const list = (planRows ?? []) as PlanRow[];
     setPlans(list);
@@ -418,6 +419,11 @@ function Index() {
               <Card
                 key={p.id}
                 className="group relative overflow-hidden p-5 transition-all hover:shadow-[var(--shadow-elevated)]"
+                style={{
+                  borderInlineStartWidth: 4,
+                  borderInlineStartStyle: "solid",
+                  borderInlineStartColor: p.accent_color ?? "#2D4A6B",
+                }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <Link
@@ -425,8 +431,14 @@ function Index() {
                     params={{ slug: p.slug }}
                     className="min-w-0 flex-1"
                   >
-                    <div className="truncate text-base font-semibold tracking-tight text-foreground group-hover:text-primary">
-                      {p.name}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full ring-1 ring-border"
+                        style={{ backgroundColor: p.accent_color ?? "#2D4A6B" }}
+                      />
+                      <div className="truncate text-base font-semibold tracking-tight text-foreground group-hover:text-primary">
+                        {p.name}
+                      </div>
                     </div>
                     {p.subtitle && (
                       <div className="mt-0.5 truncate text-sm text-muted-foreground">
