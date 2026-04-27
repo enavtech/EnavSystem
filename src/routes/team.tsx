@@ -868,6 +868,7 @@ function InternalTaskCard({
   member,
   plan,
   clientTask,
+  planStatusColors,
   onEdit,
   onDelete,
   onStatus,
@@ -876,6 +877,7 @@ function InternalTaskCard({
   member?: Member;
   plan?: PlanLite;
   clientTask?: ClientTaskLite;
+  planStatusColors?: Record<string, string> | null;
   onEdit: () => void;
   onDelete: () => void;
   onStatus: (s: string) => void;
@@ -887,8 +889,19 @@ function InternalTaskCard({
     task.status !== "done" &&
     new Date(task.due_date).getTime() < today.getTime();
 
+  const statusColor = internalStatusColor(task.status, planStatusColors);
+  const memberColor = member?.color ?? "#64748b";
+  const planAccent = plan?.accent_color ?? null;
+
   return (
-    <div className="group rounded-lg border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
+    <div
+      className="group relative overflow-hidden rounded-lg border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
+      style={{
+        borderInlineStartWidth: 3,
+        borderInlineStartStyle: "solid",
+        borderInlineStartColor: statusColor,
+      }}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-foreground">{task.title}</div>
@@ -918,12 +931,34 @@ function InternalTaskCard({
           {PRIORITIES.find((p) => p.id === task.priority)?.label}
         </span>
         {member && (
-          <span className="rounded-full bg-accent px-1.5 py-0.5 text-accent-foreground">
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium"
+            style={{
+              backgroundColor: memberColor + "22",
+              color: memberColor,
+              border: `1px solid ${memberColor}55`,
+            }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: memberColor }}
+            />
             {member.name}
           </span>
         )}
         {plan && (
-          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-primary">
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium"
+            style={{
+              backgroundColor: (planAccent ?? "#2D4A6B") + "18",
+              color: planAccent ?? "#2D4A6B",
+              border: `1px solid ${(planAccent ?? "#2D4A6B")}40`,
+            }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: planAccent ?? "#2D4A6B" }}
+            />
             {plan.name}
           </span>
         )}
