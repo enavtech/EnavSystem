@@ -17,8 +17,11 @@ import {
   PRIORITY_ORDER,
   PRIORITIES,
   DEPARTMENTS,
+  STATUSES,
   getAuthorName,
   setAuthorName,
+  DEFAULT_STATUS_COLORS,
+  getStatusColor,
 } from "@/lib/plans";
 import {
   Share2,
@@ -29,9 +32,18 @@ import {
   ArrowUpDown,
   Users,
   BarChart3,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ColorPicker } from "@/components/ColorPicker";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type Props = {
   plan: Plan;
@@ -52,6 +64,12 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
   const [showAdd, setShowAdd] = useState(false);
   const [showName, setShowName] = useState(false);
   const [authorInput, setAuthorInput] = useState("");
+  const [showColors, setShowColors] = useState(false);
+
+  // Local working copy of status colors (only used while admin edits in the dialog).
+  const planStatusColors =
+    (plan.status_colors as Record<string, string> | null | undefined) ?? null;
+  const accentColor = plan.accent_color ?? "#2D4A6B";
 
   const [nt, setNt] = useState({
     title: "",
@@ -174,10 +192,20 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
               {getAuthorName()}
             </Button>
             {isAdmin && (
-              <Button size="sm" onClick={copyShareLink}>
-                <Share2 className="ms-2 h-3.5 w-3.5" />
-                שתף ללקוח
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowColors(true)}
+                >
+                  <Palette className="ms-2 h-3.5 w-3.5" />
+                  צבעים
+                </Button>
+                <Button size="sm" onClick={copyShareLink}>
+                  <Share2 className="ms-2 h-3.5 w-3.5" />
+                  שתף ללקוח
+                </Button>
+              </>
             )}
           </div>
         </div>
