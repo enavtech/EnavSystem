@@ -139,12 +139,15 @@ function TeamPage() {
     const [m, t, p, ct] = await Promise.all([
       supabase.from("team_members").select("*").order("created_at"),
       supabase.from("internal_tasks").select("*").order("created_at", { ascending: false }),
-      supabase.from("plans").select("id,name,slug,archived").order("name"),
+      supabase
+        .from("plans")
+        .select("id,name,slug,archived,accent_color,status_colors")
+        .order("name"),
       supabase.from("tasks").select("id,title,plan_id"),
     ]);
     setMembers((m.data ?? []) as Member[]);
     setTasks((t.data ?? []) as InternalTask[]);
-    setPlans((p.data ?? []) as PlanLite[]);
+    setPlans((p.data ?? []) as unknown as PlanLite[]);
     setClientTasks((ct.data ?? []) as ClientTaskLite[]);
     setLoading(false);
   }
