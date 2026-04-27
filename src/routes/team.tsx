@@ -811,20 +811,11 @@ function TeamPage() {
             </div>
             <div className="space-y-1">
               {members.map((m) => (
-                <div
+                <MemberRow
                   key={m.id}
-                  className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  <span>{m.name}</span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={() => removeMember(m.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
-                </div>
+                  member={m}
+                  onRemove={() => removeMember(m.id)}
+                />
               ))}
               {members.length === 0 && (
                 <div className="py-6 text-center text-xs text-muted-foreground">
