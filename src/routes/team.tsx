@@ -404,6 +404,9 @@ function TeamPage() {
                         clientTask={
                           t.client_task_id ? clientTaskMap.get(t.client_task_id) : undefined
                         }
+                        planStatusColors={
+                          t.plan_id ? planMap.get(t.plan_id)?.status_colors ?? null : null
+                        }
                         onEdit={() => setEditing(t)}
                         onDelete={() => deleteTask(t.id)}
                         onStatus={(st) => quickStatus(t.id, st)}
