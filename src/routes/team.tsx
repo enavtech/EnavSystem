@@ -33,6 +33,12 @@ import {
 } from "lucide-react";
 import { isAdmin } from "@/lib/admin-session";
 import { cn } from "@/lib/utils";
+import { ColorPicker } from "@/components/ColorPicker";
+import {
+  DEFAULT_STATUS_COLORS,
+  getStatusColor,
+  readableTextOn,
+} from "@/lib/plans";
 
 export const Route = createFileRoute("/team")({
   component: TeamPage,
@@ -52,15 +58,38 @@ type InternalTask = {
   completed_at: string | null;
 };
 type Member = { id: string; name: string; color: string | null; active: boolean };
-type PlanLite = { id: string; name: string; slug: string; archived: boolean };
+type PlanLite = {
+  id: string;
+  name: string;
+  slug: string;
+  archived: boolean;
+  accent_color: string | null;
+  status_colors: Record<string, string> | null;
+};
 type ClientTaskLite = { id: string; title: string; plan_id: string };
 
-const STATUSES = [
+const INTERNAL_STATUSES = [
   { id: "todo", label: "להתחיל" },
   { id: "in_progress", label: "בתהליך" },
   { id: "blocked", label: "חסום" },
   { id: "done", label: "הושלם" },
 ] as const;
+
+/** Internal-task status → matches the Hebrew client status colors so admins see consistency. */
+const INTERNAL_STATUS_TO_CLIENT: Record<string, string> = {
+  todo: "לא התחיל",
+  in_progress: "בתהליך",
+  blocked: "מעוכב",
+  done: "הושלם",
+};
+
+function internalStatusColor(
+  internal: string,
+  planStatusColors?: Record<string, string> | null
+) {
+  const clientKey = INTERNAL_STATUS_TO_CLIENT[internal] ?? "לא התחיל";
+  return getStatusColor(clientKey, planStatusColors);
+}
 
 const PRIORITIES = [
   { id: "low", label: "נמוכה" },
