@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TeamRouteImport } from './routes/team'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
 import { Route as CTokenRouteImport } from './routes/c.$token'
 import { Route as PSlugDashboardRouteImport } from './routes/p.$slug.dashboard'
 
+const TeamRoute = TeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -44,6 +50,7 @@ const PSlugDashboardRoute = PSlugDashboardRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/team': typeof TeamRoute
   '/c/$token': typeof CTokenRoute
   '/p/$slug': typeof PSlugRouteWithChildren
   '/p/$slug/dashboard': typeof PSlugDashboardRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/team': typeof TeamRoute
   '/c/$token': typeof CTokenRoute
   '/p/$slug': typeof PSlugRouteWithChildren
   '/p/$slug/dashboard': typeof PSlugDashboardRoute
@@ -59,19 +67,27 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/team': typeof TeamRoute
   '/c/$token': typeof CTokenRoute
   '/p/$slug': typeof PSlugRouteWithChildren
   '/p/$slug/dashboard': typeof PSlugDashboardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/c/$token' | '/p/$slug' | '/p/$slug/dashboard'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/team'
+    | '/c/$token'
+    | '/p/$slug'
+    | '/p/$slug/dashboard'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/c/$token' | '/p/$slug' | '/p/$slug/dashboard'
+  to: '/' | '/login' | '/team' | '/c/$token' | '/p/$slug' | '/p/$slug/dashboard'
   id:
     | '__root__'
     | '/'
     | '/login'
+    | '/team'
     | '/c/$token'
     | '/p/$slug'
     | '/p/$slug/dashboard'
@@ -80,12 +96,20 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  TeamRoute: typeof TeamRoute
   CTokenRoute: typeof CTokenRoute
   PSlugRoute: typeof PSlugRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/team': {
+      id: '/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof TeamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -137,6 +161,7 @@ const PSlugRouteWithChildren = PSlugRoute._addFileChildren(PSlugRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  TeamRoute: TeamRoute,
   CTokenRoute: CTokenRoute,
   PSlugRoute: PSlugRouteWithChildren,
 }

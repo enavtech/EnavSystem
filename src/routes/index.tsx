@@ -21,6 +21,7 @@ import {
   Search,
   Archive,
   ChevronRight,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -318,6 +319,13 @@ function Index() {
             <LogOut className="ms-2 h-4 w-4" />
             יציאה
           </Button>
+          <Link
+            to="/team"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <Users className="h-3.5 w-3.5" />
+            משימות הצוות
+          </Link>
         </header>
 
         {/* Master KPI strip */}
