@@ -548,18 +548,33 @@ function TeamPage() {
                   const pct = mTasks.length
                     ? Math.round((mDone / mTasks.length) * 100)
                     : 0;
+                  const c = m.color ?? "#64748b";
                   return (
-                    <div key={m.id} className="rounded-lg border border-border p-3">
+                    <div
+                      key={m.id}
+                      className="rounded-lg border border-border p-3"
+                      style={{
+                        borderInlineStartWidth: 4,
+                        borderInlineStartStyle: "solid",
+                        borderInlineStartColor: c,
+                      }}
+                    >
                       <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">{m.name}</div>
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <span
+                            className="h-3 w-3 rounded-full ring-1 ring-border"
+                            style={{ backgroundColor: c }}
+                          />
+                          {m.name}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {mOpen} פתוחות · {mDone} הושלמו · {pct}%
                         </div>
                       </div>
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full rounded-full bg-success"
-                          style={{ width: `${pct}%` }}
+                          className="h-full rounded-full"
+                          style={{ width: `${pct}%`, backgroundColor: c }}
                         />
                       </div>
                     </div>
@@ -588,14 +603,27 @@ function TeamPage() {
                     if (pTasks.length === 0) return null;
                     const pDone = pTasks.filter((t) => t.status === "done").length;
                     const pct = Math.round((pDone / pTasks.length) * 100);
+                    const c = p.accent_color ?? "#2D4A6B";
                     return (
-                      <div key={p.id} className="rounded-lg border border-border p-3">
+                      <div
+                        key={p.id}
+                        className="rounded-lg border border-border p-3"
+                        style={{
+                          borderInlineStartWidth: 4,
+                          borderInlineStartStyle: "solid",
+                          borderInlineStartColor: c,
+                        }}
+                      >
                         <div className="flex items-center justify-between">
                           <Link
                             to="/p/$slug"
                             params={{ slug: p.slug }}
-                            className="text-sm font-medium hover:text-primary"
+                            className="flex items-center gap-2 text-sm font-medium hover:text-primary"
                           >
+                            <span
+                              className="h-3 w-3 rounded-full ring-1 ring-border"
+                              style={{ backgroundColor: c }}
+                            />
                             {p.name}
                           </Link>
                           <div className="text-xs text-muted-foreground">
@@ -604,8 +632,8 @@ function TeamPage() {
                         </div>
                         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                           <div
-                            className="h-full rounded-full bg-primary"
-                            style={{ width: `${pct}%` }}
+                            className="h-full rounded-full"
+                            style={{ width: `${pct}%`, backgroundColor: c }}
                           />
                         </div>
                       </div>
