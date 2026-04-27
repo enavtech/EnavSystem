@@ -1015,3 +1015,69 @@ function InternalTaskCard({
     </div>
   );
 }
+
+function MemberRow({
+  member,
+  onRemove,
+}: {
+  member: Member;
+  onRemove: () => void;
+}) {
+  const [name, setName] = useState(member.name);
+  const [color, setColor] = useState(member.color ?? "#64748b");
+
+  // Keep local state in sync if the realtime row updates.
+  useEffect(() => {
+    setName(member.name);
+    setColor(member.color ?? "#64748b");
+  }, [member.name, member.color]);
+
+  async function saveName() {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === member.name) {
+      setName(member.name);
+      return;
+    }
+    const { error } = await supabase
+      .from("team_members")
+      .update({ name: trimmed })
+      .eq("id", member.id);
+    if (error) toast.error(error.message);
+    else toast.success("השם עודכן");
+  }
+
+  async function saveColor(c: string) {
+    setColor(c);
+    const { error } = await supabase
+      .from("team_members")
+      .update({ color: c })
+      .eq("id", member.id);
+    if (error) toast.error(error.message);
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+      <ColorPicker value={color} onChange={saveColor} size="sm" />
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={saveName}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        className="h-8 flex-1 text-sm"
+      />
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7"
+        onClick={onRemove}
+      >
+        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+      </Button>
+    </div>
+  );
+}
