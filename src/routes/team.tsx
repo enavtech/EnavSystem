@@ -430,16 +430,30 @@ function TeamPage() {
                 if (items.length === 0 && filterPlan !== "all") return null;
                 const done = items.filter((i) => i.status === "done").length;
                 return (
-                  <Card key={p.id} className="p-4">
+                  <Card
+                    key={p.id}
+                    className="overflow-hidden p-4"
+                    style={{
+                      borderInlineStartWidth: 4,
+                      borderInlineStartStyle: "solid",
+                      borderInlineStartColor: p.accent_color ?? "#2D4A6B",
+                    }}
+                  >
                     <div className="mb-3 flex items-center justify-between">
                       <div>
-                        <Link
-                          to="/p/$slug"
-                          params={{ slug: p.slug }}
-                          className="text-base font-semibold text-foreground hover:text-primary"
-                        >
-                          {p.name}
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-3 w-3 rounded-full ring-1 ring-border"
+                            style={{ backgroundColor: p.accent_color ?? "#2D4A6B" }}
+                          />
+                          <Link
+                            to="/p/$slug"
+                            params={{ slug: p.slug }}
+                            className="text-base font-semibold text-foreground hover:text-primary"
+                          >
+                            {p.name}
+                          </Link>
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {items.length} משימות פנימיות · {done} הושלמו
                         </div>
@@ -472,6 +486,7 @@ function TeamPage() {
                               t.assignee_id ? memberMap.get(t.assignee_id) : undefined
                             }
                             plan={undefined}
+                            planStatusColors={p.status_colors}
                             clientTask={
                               t.client_task_id ? clientTaskMap.get(t.client_task_id) : undefined
                             }
