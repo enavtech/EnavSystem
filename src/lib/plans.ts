@@ -25,6 +25,45 @@ export const DEPARTMENTS = [
   "שיווק",
 ] as const;
 
+export const DEFAULT_STATUS_COLORS: Record<string, string> = {
+  "לא התחיל": "#94a3b8",
+  "בתהליך": "#f59e0b",
+  "מעוכב": "#dc2626",
+  "הושלם": "#16a34a",
+};
+
+/** Curated palette for color pickers (members, plans, statuses). */
+export const COLOR_PALETTE: string[] = [
+  "#2563eb", "#0ea5e9", "#06b6d4", "#10b981", "#16a34a",
+  "#84cc16", "#eab308", "#f59e0b", "#f97316", "#dc2626",
+  "#ec4899", "#a855f7", "#8b5cf6", "#6366f1", "#475569",
+  "#0f172a",
+];
+
+export function getStatusColor(
+  status: string,
+  statusColors?: Record<string, string> | null
+): string {
+  return (statusColors?.[status]) ?? DEFAULT_STATUS_COLORS[status] ?? "#94a3b8";
+}
+
+/** Returns true when a hex color is light enough that white text won't read well. */
+export function isLightColor(hex: string): boolean {
+  const c = hex.replace("#", "");
+  if (c.length !== 6) return false;
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  // Perceived brightness (YIQ)
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 170;
+}
+
+/** Returns the best foreground color (white/dark) for a given hex background. */
+export function readableTextOn(hex: string): string {
+  return isLightColor(hex) ? "#0f172a" : "#ffffff";
+}
+
 export function getDepartmentColor(dept: string | null | undefined): string {
   if (!dept) return "oklch(0.5 0.03 250)";
   return DEPARTMENT_COLORS[dept] ?? "oklch(0.5 0.03 250)";

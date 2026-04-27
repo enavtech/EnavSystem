@@ -179,6 +179,7 @@ export type Database = {
           name: string
           share_token: string
           slug: string
+          status_colors: Json
           subtitle: string | null
           updated_at: string
         }
@@ -190,6 +191,7 @@ export type Database = {
           name: string
           share_token?: string
           slug: string
+          status_colors?: Json
           subtitle?: string | null
           updated_at?: string
         }
@@ -201,6 +203,7 @@ export type Database = {
           name?: string
           share_token?: string
           slug?: string
+          status_colors?: Json
           subtitle?: string | null
           updated_at?: string
         }

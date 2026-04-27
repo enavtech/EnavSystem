@@ -33,6 +33,12 @@ import {
 } from "lucide-react";
 import { isAdmin } from "@/lib/admin-session";
 import { cn } from "@/lib/utils";
+import { ColorPicker } from "@/components/ColorPicker";
+import {
+  DEFAULT_STATUS_COLORS,
+  getStatusColor,
+  readableTextOn,
+} from "@/lib/plans";
 
 export const Route = createFileRoute("/team")({
   component: TeamPage,
@@ -52,15 +58,38 @@ type InternalTask = {
   completed_at: string | null;
 };
 type Member = { id: string; name: string; color: string | null; active: boolean };
-type PlanLite = { id: string; name: string; slug: string; archived: boolean };
+type PlanLite = {
+  id: string;
+  name: string;
+  slug: string;
+  archived: boolean;
+  accent_color: string | null;
+  status_colors: Record<string, string> | null;
+};
 type ClientTaskLite = { id: string; title: string; plan_id: string };
 
-const STATUSES = [
+const INTERNAL_STATUSES = [
   { id: "todo", label: "להתחיל" },
   { id: "in_progress", label: "בתהליך" },
   { id: "blocked", label: "חסום" },
   { id: "done", label: "הושלם" },
 ] as const;
+
+/** Internal-task status → matches the Hebrew client status colors so admins see consistency. */
+const INTERNAL_STATUS_TO_CLIENT: Record<string, string> = {
+  todo: "לא התחיל",
+  in_progress: "בתהליך",
+  blocked: "מעוכב",
+  done: "הושלם",
+};
+
+function internalStatusColor(
+  internal: string,
+  planStatusColors?: Record<string, string> | null
+) {
+  const clientKey = INTERNAL_STATUS_TO_CLIENT[internal] ?? "לא התחיל";
+  return getStatusColor(clientKey, planStatusColors);
+}
 
 const PRIORITIES = [
   { id: "low", label: "נמוכה" },
@@ -110,12 +139,15 @@ function TeamPage() {
     const [m, t, p, ct] = await Promise.all([
       supabase.from("team_members").select("*").order("created_at"),
       supabase.from("internal_tasks").select("*").order("created_at", { ascending: false }),
-      supabase.from("plans").select("id,name,slug,archived").order("name"),
+      supabase
+        .from("plans")
+        .select("id,name,slug,archived,accent_color,status_colors")
+        .order("name"),
       supabase.from("tasks").select("id,title,plan_id"),
     ]);
     setMembers((m.data ?? []) as Member[]);
     setTasks((t.data ?? []) as InternalTask[]);
-    setPlans((p.data ?? []) as PlanLite[]);
+    setPlans((p.data ?? []) as unknown as PlanLite[]);
     setClientTasks((ct.data ?? []) as ClientTaskLite[]);
     setLoading(false);
   }
@@ -341,12 +373,23 @@ function TeamPage() {
         {/* Views */}
         {tab === "kanban" && (
           <div className="grid gap-3 md:grid-cols-4">
-            {STATUSES.map((s) => {
+            {INTERNAL_STATUSES.map((s) => {
               const items = filteredTasks.filter((t) => t.status === s.id);
+              const col = internalStatusColor(s.id);
               return (
-                <div key={s.id} className="rounded-xl border border-border bg-muted/30 p-3">
+                <div
+                  key={s.id}
+                  className="overflow-hidden rounded-xl border border-border bg-muted/30 p-3"
+                  style={{ borderTop: `3px solid ${col}` }}
+                >
                   <div className="mb-3 flex items-center justify-between">
-                    <div className="text-sm font-semibold text-foreground">{s.label}</div>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: col }}
+                      />
+                      {s.label}
+                    </div>
                     <div className="rounded-full bg-card px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">
                       {items.length}
                     </div>
@@ -360,6 +403,9 @@ function TeamPage() {
                         plan={t.plan_id ? planMap.get(t.plan_id) : undefined}
                         clientTask={
                           t.client_task_id ? clientTaskMap.get(t.client_task_id) : undefined
+                        }
+                        planStatusColors={
+                          t.plan_id ? planMap.get(t.plan_id)?.status_colors ?? null : null
                         }
                         onEdit={() => setEditing(t)}
                         onDelete={() => deleteTask(t.id)}
@@ -387,16 +433,30 @@ function TeamPage() {
                 if (items.length === 0 && filterPlan !== "all") return null;
                 const done = items.filter((i) => i.status === "done").length;
                 return (
-                  <Card key={p.id} className="p-4">
+                  <Card
+                    key={p.id}
+                    className="overflow-hidden p-4"
+                    style={{
+                      borderInlineStartWidth: 4,
+                      borderInlineStartStyle: "solid",
+                      borderInlineStartColor: p.accent_color ?? "#2D4A6B",
+                    }}
+                  >
                     <div className="mb-3 flex items-center justify-between">
                       <div>
-                        <Link
-                          to="/p/$slug"
-                          params={{ slug: p.slug }}
-                          className="text-base font-semibold text-foreground hover:text-primary"
-                        >
-                          {p.name}
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-3 w-3 rounded-full ring-1 ring-border"
+                            style={{ backgroundColor: p.accent_color ?? "#2D4A6B" }}
+                          />
+                          <Link
+                            to="/p/$slug"
+                            params={{ slug: p.slug }}
+                            className="text-base font-semibold text-foreground hover:text-primary"
+                          >
+                            {p.name}
+                          </Link>
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {items.length} משימות פנימיות · {done} הושלמו
                         </div>
@@ -429,6 +489,7 @@ function TeamPage() {
                               t.assignee_id ? memberMap.get(t.assignee_id) : undefined
                             }
                             plan={undefined}
+                            planStatusColors={p.status_colors}
                             clientTask={
                               t.client_task_id ? clientTaskMap.get(t.client_task_id) : undefined
                             }
@@ -487,18 +548,33 @@ function TeamPage() {
                   const pct = mTasks.length
                     ? Math.round((mDone / mTasks.length) * 100)
                     : 0;
+                  const c = m.color ?? "#64748b";
                   return (
-                    <div key={m.id} className="rounded-lg border border-border p-3">
+                    <div
+                      key={m.id}
+                      className="rounded-lg border border-border p-3"
+                      style={{
+                        borderInlineStartWidth: 4,
+                        borderInlineStartStyle: "solid",
+                        borderInlineStartColor: c,
+                      }}
+                    >
                       <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">{m.name}</div>
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <span
+                            className="h-3 w-3 rounded-full ring-1 ring-border"
+                            style={{ backgroundColor: c }}
+                          />
+                          {m.name}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {mOpen} פתוחות · {mDone} הושלמו · {pct}%
                         </div>
                       </div>
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full rounded-full bg-success"
-                          style={{ width: `${pct}%` }}
+                          className="h-full rounded-full"
+                          style={{ width: `${pct}%`, backgroundColor: c }}
                         />
                       </div>
                     </div>
@@ -527,14 +603,27 @@ function TeamPage() {
                     if (pTasks.length === 0) return null;
                     const pDone = pTasks.filter((t) => t.status === "done").length;
                     const pct = Math.round((pDone / pTasks.length) * 100);
+                    const c = p.accent_color ?? "#2D4A6B";
                     return (
-                      <div key={p.id} className="rounded-lg border border-border p-3">
+                      <div
+                        key={p.id}
+                        className="rounded-lg border border-border p-3"
+                        style={{
+                          borderInlineStartWidth: 4,
+                          borderInlineStartStyle: "solid",
+                          borderInlineStartColor: c,
+                        }}
+                      >
                         <div className="flex items-center justify-between">
                           <Link
                             to="/p/$slug"
                             params={{ slug: p.slug }}
-                            className="text-sm font-medium hover:text-primary"
+                            className="flex items-center gap-2 text-sm font-medium hover:text-primary"
                           >
+                            <span
+                              className="h-3 w-3 rounded-full ring-1 ring-border"
+                              style={{ backgroundColor: c }}
+                            />
                             {p.name}
                           </Link>
                           <div className="text-xs text-muted-foreground">
@@ -543,8 +632,8 @@ function TeamPage() {
                         </div>
                         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                           <div
-                            className="h-full rounded-full bg-primary"
-                            style={{ width: `${pct}%` }}
+                            className="h-full rounded-full"
+                            style={{ width: `${pct}%`, backgroundColor: c }}
                           />
                         </div>
                       </div>
@@ -591,7 +680,7 @@ function TeamPage() {
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {STATUSES.map((s) => (
+                      {INTERNAL_STATUSES.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -722,20 +811,11 @@ function TeamPage() {
             </div>
             <div className="space-y-1">
               {members.map((m) => (
-                <div
+                <MemberRow
                   key={m.id}
-                  className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  <span>{m.name}</span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={() => removeMember(m.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
-                </div>
+                  member={m}
+                  onRemove={() => removeMember(m.id)}
+                />
               ))}
               {members.length === 0 && (
                 <div className="py-6 text-center text-xs text-muted-foreground">
@@ -807,6 +887,7 @@ function InternalTaskCard({
   member,
   plan,
   clientTask,
+  planStatusColors,
   onEdit,
   onDelete,
   onStatus,
@@ -815,6 +896,7 @@ function InternalTaskCard({
   member?: Member;
   plan?: PlanLite;
   clientTask?: ClientTaskLite;
+  planStatusColors?: Record<string, string> | null;
   onEdit: () => void;
   onDelete: () => void;
   onStatus: (s: string) => void;
@@ -826,8 +908,19 @@ function InternalTaskCard({
     task.status !== "done" &&
     new Date(task.due_date).getTime() < today.getTime();
 
+  const statusColor = internalStatusColor(task.status, planStatusColors);
+  const memberColor = member?.color ?? "#64748b";
+  const planAccent = plan?.accent_color ?? null;
+
   return (
-    <div className="group rounded-lg border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
+    <div
+      className="group relative overflow-hidden rounded-lg border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
+      style={{
+        borderInlineStartWidth: 3,
+        borderInlineStartStyle: "solid",
+        borderInlineStartColor: statusColor,
+      }}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-foreground">{task.title}</div>
@@ -857,12 +950,34 @@ function InternalTaskCard({
           {PRIORITIES.find((p) => p.id === task.priority)?.label}
         </span>
         {member && (
-          <span className="rounded-full bg-accent px-1.5 py-0.5 text-accent-foreground">
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium"
+            style={{
+              backgroundColor: memberColor + "22",
+              color: memberColor,
+              border: `1px solid ${memberColor}55`,
+            }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: memberColor }}
+            />
             {member.name}
           </span>
         )}
         {plan && (
-          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-primary">
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium"
+            style={{
+              backgroundColor: (planAccent ?? "#2D4A6B") + "18",
+              color: planAccent ?? "#2D4A6B",
+              border: `1px solid ${(planAccent ?? "#2D4A6B")}40`,
+            }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: planAccent ?? "#2D4A6B" }}
+            />
             {plan.name}
           </span>
         )}
@@ -889,7 +1004,7 @@ function InternalTaskCard({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {STATUSES.map((s) => (
+            {INTERNAL_STATUSES.map((s) => (
               <SelectItem key={s.id} value={s.id}>
                 {s.label}
               </SelectItem>
@@ -897,6 +1012,72 @@ function InternalTaskCard({
           </SelectContent>
         </Select>
       </div>
+    </div>
+  );
+}
+
+function MemberRow({
+  member,
+  onRemove,
+}: {
+  member: Member;
+  onRemove: () => void;
+}) {
+  const [name, setName] = useState(member.name);
+  const [color, setColor] = useState(member.color ?? "#64748b");
+
+  // Keep local state in sync if the realtime row updates.
+  useEffect(() => {
+    setName(member.name);
+    setColor(member.color ?? "#64748b");
+  }, [member.name, member.color]);
+
+  async function saveName() {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === member.name) {
+      setName(member.name);
+      return;
+    }
+    const { error } = await supabase
+      .from("team_members")
+      .update({ name: trimmed })
+      .eq("id", member.id);
+    if (error) toast.error(error.message);
+    else toast.success("השם עודכן");
+  }
+
+  async function saveColor(c: string) {
+    setColor(c);
+    const { error } = await supabase
+      .from("team_members")
+      .update({ color: c })
+      .eq("id", member.id);
+    if (error) toast.error(error.message);
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+      <ColorPicker value={color} onChange={saveColor} size="sm" />
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={saveName}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        className="h-8 flex-1 text-sm"
+      />
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7"
+        onClick={onRemove}
+      >
+        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+      </Button>
     </div>
   );
 }

@@ -17,8 +17,11 @@ import {
   PRIORITY_ORDER,
   PRIORITIES,
   DEPARTMENTS,
+  STATUSES,
   getAuthorName,
   setAuthorName,
+  DEFAULT_STATUS_COLORS,
+  getStatusColor,
 } from "@/lib/plans";
 import {
   Share2,
@@ -29,9 +32,18 @@ import {
   ArrowUpDown,
   Users,
   BarChart3,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ColorPicker } from "@/components/ColorPicker";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type Props = {
   plan: Plan;
@@ -52,6 +64,12 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
   const [showAdd, setShowAdd] = useState(false);
   const [showName, setShowName] = useState(false);
   const [authorInput, setAuthorInput] = useState("");
+  const [showColors, setShowColors] = useState(false);
+
+  // Local working copy of status colors (only used while admin edits in the dialog).
+  const planStatusColors =
+    (plan.status_colors as Record<string, string> | null | undefined) ?? null;
+  const accentColor = plan.accent_color ?? "#2D4A6B";
 
   const [nt, setNt] = useState({
     title: "",
@@ -174,10 +192,20 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
               {getAuthorName()}
             </Button>
             {isAdmin && (
-              <Button size="sm" onClick={copyShareLink}>
-                <Share2 className="ms-2 h-3.5 w-3.5" />
-                שתף ללקוח
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowColors(true)}
+                >
+                  <Palette className="ms-2 h-3.5 w-3.5" />
+                  צבעים
+                </Button>
+                <Button size="sm" onClick={copyShareLink}>
+                  <Share2 className="ms-2 h-3.5 w-3.5" />
+                  שתף ללקוח
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -208,11 +236,14 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
         <header className="mb-5 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
           <div
             className="h-24 bg-gradient-to-br from-primary/12 via-card to-accent/30"
+            style={{
+              background: `linear-gradient(135deg, ${accentColor}18, transparent 60%)`,
+            }}
           >
             <div
               className="h-1 w-full"
               style={{
-                background: `linear-gradient(90deg, ${plan.accent_color ?? "#2D4A6B"}, oklch(0.6 0.13 220))`,
+                background: `linear-gradient(90deg, ${accentColor}, ${accentColor}99)`,
               }}
             />
           </div>
@@ -298,6 +329,7 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
               comments={comments[t.id] ?? []}
               isAdminView={isAdmin}
               planId={plan.id}
+              statusColors={planStatusColors}
             />
           ))}
           {filteredTasks.length === 0 && (
@@ -384,7 +416,128 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
           </form>
         )}
       </div>
+
+      {/* Plan colors dialog (admin only) */}
+      {isAdmin && (
+        <PlanColorsDialog
+          open={showColors}
+          onOpenChange={setShowColors}
+          planId={plan.id}
+          accent={accentColor}
+          statusColors={planStatusColors}
+        />
+      )}
     </div>
+  );
+}
+
+function PlanColorsDialog({
+  open,
+  onOpenChange,
+  planId,
+  accent,
+  statusColors,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  planId: string;
+  accent: string;
+  statusColors: Record<string, string> | null;
+}) {
+  const initialStatus = useMemo(() => {
+    const out: Record<string, string> = { ...DEFAULT_STATUS_COLORS };
+    STATUSES.forEach((s) => {
+      out[s] = getStatusColor(s, statusColors);
+    });
+    return out;
+  }, [statusColors]);
+
+  const [accentLocal, setAccentLocal] = useState(accent);
+  const [statusLocal, setStatusLocal] = useState<Record<string, string>>(initialStatus);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setAccentLocal(accent);
+      setStatusLocal(initialStatus);
+    }
+  }, [open, accent, initialStatus]);
+
+  async function save() {
+    setSaving(true);
+    const { error } = await supabase
+      .from("plans")
+      .update({ accent_color: accentLocal, status_colors: statusLocal })
+      .eq("id", planId);
+    setSaving(false);
+    if (error) toast.error("שגיאה: " + error.message);
+    else {
+      toast.success("הצבעים נשמרו");
+      onOpenChange(false);
+    }
+  }
+
+  function reset() {
+    setStatusLocal({ ...DEFAULT_STATUS_COLORS });
+    setAccentLocal("#2D4A6B");
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>צבעי התוכנית</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
+            <div>
+              <div className="text-sm font-medium text-foreground">צבע הלקוח</div>
+              <div className="text-xs text-muted-foreground">
+                ההדגשה במסך התוכנית ובכרטיס הלקוח
+              </div>
+            </div>
+            <ColorPicker value={accentLocal} onChange={setAccentLocal} />
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              צבעי סטטוס משימות
+            </div>
+            {STATUSES.map((s) => (
+              <div
+                key={s}
+                className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-3 w-3 rounded-full ring-1 ring-border"
+                    style={{ backgroundColor: statusLocal[s] }}
+                  />
+                  <span className="text-sm">{s}</span>
+                </div>
+                <ColorPicker
+                  value={statusLocal[s]}
+                  onChange={(c) => setStatusLocal({ ...statusLocal, [s]: c })}
+                  size="sm"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        <DialogFooter className="flex justify-between gap-2 sm:justify-between">
+          <Button variant="ghost" onClick={reset} disabled={saving}>
+            איפוס לברירת מחדל
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              ביטול
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? "שומר…" : "שמור"}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Task, TaskStep, Comment } from "@/hooks/usePlanRealtime";
 import {
@@ -6,7 +6,8 @@ import {
   formatDeadline,
   getDepartmentColor,
   priorityBadgeClass,
-  statusBadgeClass,
+  getStatusColor,
+  readableTextOn,
   PRIORITIES,
   STATUSES,
   DEPARTMENTS,
@@ -33,9 +34,11 @@ interface Props {
   comments: Comment[];
   isAdminView?: boolean;
   planId?: string;
+  /** Per-plan status color overrides. */
+  statusColors?: Record<string, string> | null;
 }
 
-export function TaskCard({ task, steps, comments, isAdminView, planId }: Props) {
+export function TaskCard({ task, steps, comments, isAdminView, planId, statusColors }: Props) {
   const [open, setOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(task.title);
   const [editingNote, setEditingNote] = useState(task.note ?? "");
@@ -45,6 +48,9 @@ export function TaskCard({ task, steps, comments, isAdminView, planId }: Props) 
   const days = calcDays(task.deadline);
   const isDone = task.status === "הושלם";
   const isProg = task.status === "בתהליך";
+
+  const statusColor = getStatusColor(task.status, statusColors);
+  const statusFg = readableTextOn(statusColor);
 
   async function toggleDone(e: React.MouseEvent) {
     e.stopPropagation();
@@ -117,19 +123,25 @@ export function TaskCard({ task, steps, comments, isAdminView, planId }: Props) 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-soft)] transition-shadow hover:shadow-[var(--shadow-elevated)]">
       <div
-        className="flex items-start gap-3 p-3 cursor-pointer"
+        className="relative flex items-start gap-3 p-3 cursor-pointer"
         onClick={() => setOpen(!open)}
       >
+        {/* Left status accent strip */}
+        <span
+          aria-hidden
+          className="absolute inset-y-0 right-0 w-1 rtl:right-0 ltr:left-0"
+          style={{ backgroundColor: statusColor }}
+        />
         <button
           onClick={toggleDone}
           className={cn(
-            "mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors",
-            isDone
-              ? "border-success bg-success text-success-foreground"
-              : isProg
-                ? "border-warning bg-warning text-warning-foreground"
-                : "border-muted-foreground/40 hover:border-primary"
+            "mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors"
           )}
+          style={{
+            borderColor: statusColor,
+            backgroundColor: isDone || isProg ? statusColor : "transparent",
+            color: statusFg,
+          }}
         >
           {isDone && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
           {isProg && <Clock className="h-3 w-3" strokeWidth={3} />}
@@ -166,10 +178,14 @@ export function TaskCard({ task, steps, comments, isAdminView, planId }: Props) 
             )}
             {(isDone || isProg) && (
               <span
-                className={cn(
-                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                  statusBadgeClass(task.status)
-                )}
+                className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                style={{
+                  backgroundColor: statusColor + "22",
+                  color: statusColor,
+                  borderColor: statusColor + "55",
+                  borderWidth: 1,
+                  borderStyle: "solid",
+                }}
               >
                 {task.status}
               </span>
@@ -426,11 +442,13 @@ function StepRow({
   onDelete: () => void;
 }) {
   const [value, setValue] = useState(step.content);
-  // Sync when remote update changes content (and we're not focused)
   const [focused, setFocused] = useState(false);
-  if (!focused && value !== step.content && document.activeElement?.tagName !== "INPUT") {
-    // shallow re-sync
-  }
+
+  // Sync local value with remote when not actively editing.
+  useEffect(() => {
+    if (!focused) setValue(step.content);
+  }, [step.content, focused]);
+
   return (
     <div className="flex items-center gap-2">
       <input
