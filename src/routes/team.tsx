@@ -791,6 +791,9 @@ function TeamPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>חברי צוות</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              לחצו על מעגל הצבע שליד כל שם כדי להגדיר צבע ייחודי לחבר/ת הצוות. הצבע יופיע על משימותיהם.
+            </p>
           </DialogHeader>
           <div className="space-y-3">
             <div className="flex gap-2">
