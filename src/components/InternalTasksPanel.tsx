@@ -9,9 +9,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Briefcase } from "lucide-react";
+import { Plus, Trash2, Briefcase, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
+import { ColorPicker } from "@/components/ColorPicker";
+import { toast } from "sonner";
 
 type InternalTask = {
   id: string;
@@ -21,7 +23,7 @@ type InternalTask = {
   assignee_id: string | null;
   due_date: string | null;
 };
-type Member = { id: string; name: string };
+type Member = { id: string; name: string; color: string | null };
 
 const STATUSES = [
   { id: "todo", label: "להתחיל" },
@@ -48,7 +50,7 @@ export function InternalTasksPanel({ clientTaskId, planId }: Props) {
         .select("id,title,status,priority,assignee_id,due_date")
         .eq("client_task_id", clientTaskId)
         .order("created_at"),
-      supabase.from("team_members").select("id,name").order("name"),
+      supabase.from("team_members").select("id,name,color").order("name"),
     ]);
     setItems((a.data ?? []) as InternalTask[]);
     setMembers((b.data ?? []) as Member[]);
@@ -101,6 +103,14 @@ export function InternalTasksPanel({ clientTaskId, planId }: Props) {
     await supabase.from("internal_tasks").delete().eq("id", id);
   }
 
+  async function updateMemberColor(memberId: string, color: string) {
+    const { error } = await supabase
+      .from("team_members")
+      .update({ color })
+      .eq("id", memberId);
+    if (error) toast.error(error.message);
+  }
+
   const open = items.filter((i) => i.status !== "done").length;
 
   return (
@@ -115,11 +125,51 @@ export function InternalTasksPanel({ clientTaskId, planId }: Props) {
         </Link>
       </div>
 
+      {members.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 rounded-md bg-card/60 px-2 py-1.5">
+          <span className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <Palette className="h-3 w-3" /> צבעי צוות
+          </span>
+          {members.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-center gap-1 rounded-full border border-border bg-background px-1.5 py-0.5 text-[11px]"
+              style={{
+                backgroundColor: (m.color ?? "#64748b") + "18",
+                borderColor: (m.color ?? "#64748b") + "55",
+              }}
+            >
+              <ColorPicker
+                value={m.color ?? "#64748b"}
+                onChange={(c) => updateMemberColor(m.id, c)}
+                size="sm"
+                className="!border-0 !bg-transparent !p-0"
+              />
+              <span style={{ color: m.color ?? "#0f172a" }}>{m.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-1.5">
-        {items.map((t) => (
+        {items.map((t) => {
+          const assignee = t.assignee_id
+            ? members.find((m) => m.id === t.assignee_id)
+            : undefined;
+          const aColor = assignee?.color ?? "#64748b";
+          return (
           <div
             key={t.id}
             className="group flex flex-wrap items-center gap-1.5 rounded-md bg-card px-2 py-1.5 text-xs"
+            style={
+              assignee
+                ? {
+                    borderInlineStartWidth: 3,
+                    borderInlineStartStyle: "solid",
+                    borderInlineStartColor: aColor,
+                  }
+                : undefined
+            }
           >
             <span
               className={cn(
@@ -129,6 +179,22 @@ export function InternalTasksPanel({ clientTaskId, planId }: Props) {
             >
               {t.title}
             </span>
+            {assignee && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                style={{
+                  backgroundColor: aColor + "22",
+                  color: aColor,
+                  border: `1px solid ${aColor}55`,
+                }}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: aColor }}
+                />
+                {assignee.name}
+              </span>
+            )}
             <Select value={t.status} onValueChange={(v) => setStatus(t.id, v)}>
               <SelectTrigger className="h-6 w-[100px] text-[11px]">
                 <SelectValue />
@@ -152,7 +218,13 @@ export function InternalTasksPanel({ clientTaskId, planId }: Props) {
                 <SelectItem value="none">ללא שיוך</SelectItem>
                 {members.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
-                    {m.name}
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: m.color ?? "#64748b" }}
+                      />
+                      {m.name}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -166,7 +238,8 @@ export function InternalTasksPanel({ clientTaskId, planId }: Props) {
               <Trash2 className="h-3 w-3 text-muted-foreground" />
             </Button>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="mt-2 flex items-center gap-1.5">
@@ -190,7 +263,13 @@ export function InternalTasksPanel({ clientTaskId, planId }: Props) {
             <SelectItem value="none">ללא שיוך</SelectItem>
             {members.map((m) => (
               <SelectItem key={m.id} value={m.id}>
-                {m.name}
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: m.color ?? "#64748b" }}
+                  />
+                  {m.name}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
