@@ -114,6 +114,8 @@ function TeamPage() {
   const [plans, setPlans] = useState<PlanLite[]>([]);
   const [clientTasks, setClientTasks] = useState<ClientTaskLite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   // Filters
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
@@ -232,6 +234,26 @@ function TeamPage() {
 
   async function quickStatus(id: string, status: string) {
     await supabase.from("internal_tasks").update({ status }).eq("id", id);
+  }
+
+  async function handleDrop(taskId: string, newStatus: string) {
+    const t = tasks.find((x) => x.id === taskId);
+    if (!t || t.status === newStatus) return;
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((x) => (x.id === taskId ? { ...x, status: newStatus } : x))
+    );
+    const patch: { status: string; completed_at?: string | null } = { status: newStatus };
+    if (newStatus === "done") patch.completed_at = new Date().toISOString();
+    else if (t.status === "done") patch.completed_at = null;
+    const { error } = await supabase
+      .from("internal_tasks")
+      .update(patch)
+      .eq("id", taskId);
+    if (error) {
+      toast.error("שגיאה בעדכון: " + error.message);
+      void loadAll();
+    }
   }
   async function deleteTask(id: string) {
     if (!confirm("למחוק משימה פנימית זו?")) return;
@@ -376,11 +398,32 @@ function TeamPage() {
             {INTERNAL_STATUSES.map((s) => {
               const items = filteredTasks.filter((t) => t.status === s.id);
               const col = internalStatusColor(s.id);
+              const isOver = dragOverCol === s.id;
               return (
                 <div
                   key={s.id}
-                  className="overflow-hidden rounded-xl border border-border bg-muted/30 p-3"
+                  className={cn(
+                    "overflow-hidden rounded-xl border bg-muted/30 p-3 transition-colors",
+                    isOver ? "border-primary bg-primary/5 ring-2 ring-primary/30" : "border-border"
+                  )}
                   style={{ borderTop: `3px solid ${col}` }}
+                  onDragOver={(e) => {
+                    if (draggingId) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverCol !== s.id) setDragOverCol(s.id);
+                    }
+                  }}
+                  onDragLeave={(e) => {
+                    if (e.currentTarget === e.target) setDragOverCol(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const id = e.dataTransfer.getData("text/plain") || draggingId;
+                    setDragOverCol(null);
+                    setDraggingId(null);
+                    if (id) void handleDrop(id, s.id);
+                  }}
                 >
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -410,11 +453,22 @@ function TeamPage() {
                         onEdit={() => setEditing(t)}
                         onDelete={() => deleteTask(t.id)}
                         onStatus={(st) => quickStatus(t.id, st)}
+                        draggable
+                        isDragging={draggingId === t.id}
+                        onDragStart={(e) => {
+                          setDraggingId(t.id);
+                          e.dataTransfer.setData("text/plain", t.id);
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragEnd={() => {
+                          setDraggingId(null);
+                          setDragOverCol(null);
+                        }}
                       />
                     ))}
                     {items.length === 0 && (
                       <div className="rounded-lg border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
-                        ריק
+                        {isOver ? "שחרר כאן" : "ריק · גרור משימה"}
                       </div>
                     )}
                   </div>
@@ -894,6 +948,10 @@ function InternalTaskCard({
   onEdit,
   onDelete,
   onStatus,
+  draggable,
+  isDragging,
+  onDragStart,
+  onDragEnd,
 }: {
   task: InternalTask;
   member?: Member;
@@ -903,6 +961,10 @@ function InternalTaskCard({
   onEdit: () => void;
   onDelete: () => void;
   onStatus: (s: string) => void;
+  draggable?: boolean;
+  isDragging?: boolean;
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -917,7 +979,14 @@ function InternalTaskCard({
 
   return (
     <div
-      className="group relative overflow-hidden rounded-lg border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={cn(
+        "group relative overflow-hidden rounded-lg border border-border bg-card p-3 shadow-sm transition-all hover:shadow-md",
+        draggable && "cursor-grab active:cursor-grabbing",
+        isDragging && "opacity-40 ring-2 ring-primary"
+      )}
       style={{
         borderInlineStartWidth: 3,
         borderInlineStartStyle: "solid",
