@@ -257,8 +257,8 @@ function TeamPage() {
       prev.map((x) => (x.id === taskId ? { ...x, status: newStatus } : x))
     );
     const patch: { status: string; completed_at?: string | null } = { status: newStatus };
-    if (newStatus === "done") patch.completed_at = new Date().toISOString();
-    else if (t.status === "done") patch.completed_at = null;
+    if (isDoneStatus(newStatus)) patch.completed_at = new Date().toISOString();
+    else if (isDoneStatus(t.status)) patch.completed_at = null;
     const { error } = await supabase
       .from("internal_tasks")
       .update(patch)
