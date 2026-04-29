@@ -971,6 +971,7 @@ function InternalTaskCard({
   plan,
   clientTask,
   planStatusColors,
+  statuses,
   onEdit,
   onDelete,
   onStatus,
@@ -984,6 +985,7 @@ function InternalTaskCard({
   plan?: PlanLite;
   clientTask?: ClientTaskLite;
   planStatusColors?: Record<string, string> | null;
+  statuses: KanbanStatus[];
   onEdit: () => void;
   onDelete: () => void;
   onStatus: (s: string) => void;
@@ -994,12 +996,15 @@ function InternalTaskCard({
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const currentStatus = statuses.find((s) => s.status_key === task.status);
+  const isDoneTask = currentStatus?.is_done ?? false;
   const isOverdue =
     task.due_date &&
-    task.status !== "done" &&
+    !isDoneTask &&
     new Date(task.due_date).getTime() < today.getTime();
 
-  const statusColor = internalStatusColor(task.status, planStatusColors);
+  void planStatusColors; // accepted for API compatibility, color now from statuses
+  const statusColor = currentStatus?.color ?? FALLBACK_STATUS_COLOR;
   const memberColor = member?.color ?? "#64748b";
   const planAccent = plan?.accent_color ?? null;
 
@@ -1102,9 +1107,15 @@ function InternalTaskCard({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {INTERNAL_STATUSES.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.label}
+            {statuses.map((s) => (
+              <SelectItem key={s.id} value={s.status_key}>
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: s.color }}
+                  />
+                  {s.label}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
