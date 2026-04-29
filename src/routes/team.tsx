@@ -1272,3 +1272,101 @@ function MemberRow({
     </div>
   );
 }
+
+function StatusRow({
+  status,
+  isFirst,
+  isLast,
+  onUpdate,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+}: {
+  status: KanbanStatus;
+  isFirst: boolean;
+  isLast: boolean;
+  onUpdate: (patch: Partial<KanbanStatus>) => void | Promise<void>;
+  onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}) {
+  const [label, setLabel] = useState(status.label);
+  const [color, setColor] = useState(status.color);
+
+  useEffect(() => {
+    setLabel(status.label);
+    setColor(status.color);
+  }, [status.label, status.color]);
+
+  function saveLabel() {
+    const trimmed = label.trim();
+    if (!trimmed || trimmed === status.label) {
+      setLabel(status.label);
+      return;
+    }
+    void onUpdate({ label: trimmed });
+  }
+
+  function saveColor(c: string) {
+    setColor(c);
+    void onUpdate({ color: c });
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
+      <ColorPicker value={color} onChange={saveColor} size="sm" />
+      <Input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        onBlur={saveLabel}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        className="h-8 flex-1 text-sm"
+      />
+      <label className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={status.is_done}
+          onChange={(e) => void onUpdate({ is_done: e.target.checked })}
+          className="h-3.5 w-3.5 cursor-pointer accent-primary"
+        />
+        סיום
+      </label>
+      <div className="flex items-center gap-0.5">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          disabled={isFirst}
+          onClick={onMoveUp}
+          title="הזז למעלה"
+        >
+          <ArrowUp className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          disabled={isLast}
+          onClick={onMoveDown}
+          title="הזז למטה"
+        >
+          <ArrowDown className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          onClick={onRemove}
+          title="מחק שלב"
+        >
+          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </div>
+    </div>
+  );
+}
