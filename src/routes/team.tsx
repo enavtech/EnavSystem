@@ -468,6 +468,7 @@ function TeamPage() {
                         planStatusColors={
                           t.plan_id ? planMap.get(t.plan_id)?.status_colors ?? null : null
                         }
+                        statuses={statuses}
                         onEdit={() => setEditing(t)}
                         onDelete={() => deleteTask(t.id)}
                         onStatus={(st) => quickStatus(t.id, st)}
@@ -565,6 +566,7 @@ function TeamPage() {
                             clientTask={
                               t.client_task_id ? clientTaskMap.get(t.client_task_id) : undefined
                             }
+                            statuses={statuses}
                             onEdit={() => setEditing(t)}
                             onDelete={() => deleteTask(t.id)}
                             onStatus={(st) => quickStatus(t.id, st)}
@@ -590,6 +592,7 @@ function TeamPage() {
                         member={t.assignee_id ? memberMap.get(t.assignee_id) : undefined}
                         plan={undefined}
                         clientTask={undefined}
+                        statuses={statuses}
                         onEdit={() => setEditing(t)}
                         onDelete={() => deleteTask(t.id)}
                         onStatus={(st) => quickStatus(t.id, st)}
