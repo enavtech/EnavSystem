@@ -504,7 +504,7 @@ function TeamPage() {
               .map((p) => {
                 const items = filteredTasks.filter((t) => t.plan_id === p.id);
                 if (items.length === 0 && filterPlan !== "all") return null;
-                const done = items.filter((i) => i.status === "done").length;
+                const done = items.filter((i) => isDoneStatus(i.status)).length;
                 return (
                   <Card
                     key={p.id}
@@ -618,7 +618,7 @@ function TeamPage() {
                 )}
                 {members.map((m) => {
                   const mTasks = tasks.filter((t) => t.assignee_id === m.id);
-                  const mDone = mTasks.filter((t) => t.status === "done").length;
+                  const mDone = mTasks.filter((t) => isDoneStatus(t.status)).length;
                   const mOpen = mTasks.length - mDone;
                   const pct = mTasks.length
                     ? Math.round((mDone / mTasks.length) * 100)
@@ -676,7 +676,7 @@ function TeamPage() {
                   .map((p) => {
                     const pTasks = tasks.filter((t) => t.plan_id === p.id);
                     if (pTasks.length === 0) return null;
-                    const pDone = pTasks.filter((t) => t.status === "done").length;
+                    const pDone = pTasks.filter((t) => isDoneStatus(t.status)).length;
                     const pct = Math.round((pDone / pTasks.length) * 100);
                     const c = p.accent_color ?? "#2D4A6B";
                     return (
