@@ -341,6 +341,9 @@ function TeamPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowStatuses(true)}>
+              <Settings2 className="ms-2 h-4 w-4" /> שלבים ({statuses.length})
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowMembers(true)}>
               <Users className="ms-2 h-4 w-4" /> צוות ({members.filter((m) => m.active).length})
             </Button>
