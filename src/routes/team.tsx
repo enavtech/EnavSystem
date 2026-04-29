@@ -181,6 +181,24 @@ function TeamPage() {
     clientTasks.forEach((c) => m.set(c.id, c));
     return m;
   }, [clientTasks]);
+  const statusMap = useMemo(() => {
+    const m = new Map<string, KanbanStatus>();
+    statuses.forEach((s) => m.set(s.status_key, s));
+    return m;
+  }, [statuses]);
+  const doneKeys = useMemo(
+    () => new Set(statuses.filter((s) => s.is_done).map((s) => s.status_key)),
+    [statuses]
+  );
+  function statusColorOf(key: string) {
+    return statusMap.get(key)?.color ?? FALLBACK_STATUS_COLOR;
+  }
+  function statusLabelOf(key: string) {
+    return statusMap.get(key)?.label ?? key;
+  }
+  function isDoneStatus(key: string) {
+    return doneKeys.has(key);
+  }
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
