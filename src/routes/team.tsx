@@ -99,6 +99,7 @@ function TeamPage() {
   const [tasks, setTasks] = useState<InternalTask[]>([]);
   const [plans, setPlans] = useState<PlanLite[]>([]);
   const [clientTasks, setClientTasks] = useState<ClientTaskLite[]>([]);
+  const [statuses, setStatuses] = useState<KanbanStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -115,6 +116,9 @@ function TeamPage() {
   const [showMembers, setShowMembers] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
 
+  // Statuses (Kanban stages) dialog
+  const [showStatuses, setShowStatuses] = useState(false);
+
   useEffect(() => {
     if (!isAdmin()) {
       navigate({ to: "/login" });
@@ -124,7 +128,7 @@ function TeamPage() {
   }, [navigate]);
 
   async function loadAll() {
-    const [m, t, p, ct] = await Promise.all([
+    const [m, t, p, ct, ks] = await Promise.all([
       supabase.from("team_members").select("*").order("created_at"),
       supabase.from("internal_tasks").select("*").order("created_at", { ascending: false }),
       supabase
@@ -132,11 +136,13 @@ function TeamPage() {
         .select("id,name,slug,archived,accent_color,status_colors")
         .order("name"),
       supabase.from("tasks").select("id,title,plan_id"),
+      supabase.from("kanban_statuses").select("*").order("position"),
     ]);
     setMembers((m.data ?? []) as Member[]);
     setTasks((t.data ?? []) as InternalTask[]);
     setPlans((p.data ?? []) as unknown as PlanLite[]);
     setClientTasks((ct.data ?? []) as ClientTaskLite[]);
+    setStatuses((ks.data ?? []) as KanbanStatus[]);
     setLoading(false);
   }
 
@@ -149,6 +155,9 @@ function TeamPage() {
         loadAll()
       )
       .on("postgres_changes", { event: "*", schema: "public", table: "team_members" }, () =>
+        loadAll()
+      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "kanban_statuses" }, () =>
         loadAll()
       )
       .subscribe();
