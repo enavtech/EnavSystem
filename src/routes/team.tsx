@@ -752,8 +752,16 @@ function TeamPage() {
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {INTERNAL_STATUSES.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                      {statuses.map((s) => (
+                        <SelectItem key={s.id} value={s.status_key}>
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: s.color }}
+                            />
+                            {s.label}
+                          </span>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
