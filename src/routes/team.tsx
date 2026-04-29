@@ -30,15 +30,13 @@ import {
   LayoutGrid,
   BarChart3,
   Pencil,
+  Settings2,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { isAdmin } from "@/lib/admin-session";
 import { cn } from "@/lib/utils";
 import { ColorPicker } from "@/components/ColorPicker";
-import {
-  DEFAULT_STATUS_COLORS,
-  getStatusColor,
-  readableTextOn,
-} from "@/lib/plans";
 
 export const Route = createFileRoute("/team")({
   component: TeamPage,
@@ -68,28 +66,16 @@ type PlanLite = {
 };
 type ClientTaskLite = { id: string; title: string; plan_id: string };
 
-const INTERNAL_STATUSES = [
-  { id: "todo", label: "להתחיל" },
-  { id: "in_progress", label: "בתהליך" },
-  { id: "blocked", label: "חסום" },
-  { id: "done", label: "הושלם" },
-] as const;
-
-/** Internal-task status → matches the Hebrew client status colors so admins see consistency. */
-const INTERNAL_STATUS_TO_CLIENT: Record<string, string> = {
-  todo: "לא התחיל",
-  in_progress: "בתהליך",
-  blocked: "מעוכב",
-  done: "הושלם",
+type KanbanStatus = {
+  id: string;
+  status_key: string;
+  label: string;
+  color: string;
+  position: number;
+  is_done: boolean;
 };
 
-function internalStatusColor(
-  internal: string,
-  planStatusColors?: Record<string, string> | null
-) {
-  const clientKey = INTERNAL_STATUS_TO_CLIENT[internal] ?? "לא התחיל";
-  return getStatusColor(clientKey, planStatusColors);
-}
+const FALLBACK_STATUS_COLOR = "#94a3b8";
 
 const PRIORITIES = [
   { id: "low", label: "נמוכה" },
