@@ -290,6 +290,45 @@ function TeamPage() {
     await supabase.from("team_members").delete().eq("id", id);
   }
 
+  async function addStatus() {
+    const label = prompt("שם השלב החדש:")?.trim();
+    if (!label) return;
+    // Generate a unique key based on existing keys
+    let key = `stage_${Date.now().toString(36)}`;
+    const maxPos = statuses.reduce((m, s) => Math.max(m, s.position), -1);
+    const palette = ["#94a3b8", "#f59e0b", "#dc2626", "#16a34a", "#3b82f6", "#a855f7", "#ec4899", "#14b8a6"];
+    const color = palette[(maxPos + 1) % palette.length];
+    const { error } = await supabase
+      .from("kanban_statuses")
+      .insert({ status_key: key, label, color, position: maxPos + 1, is_done: false });
+    if (error) toast.error(error.message);
+    else toast.success("שלב נוסף");
+  }
+  async function updateStatus(id: string, patch: Partial<KanbanStatus>) {
+    const { error } = await supabase.from("kanban_statuses").update(patch).eq("id", id);
+    if (error) toast.error(error.message);
+  }
+  async function removeStatus(s: KanbanStatus) {
+    const inUse = tasks.filter((t) => t.status === s.status_key).length;
+    if (inUse > 0) {
+      toast.error(`לא ניתן למחוק - ${inUse} משימות עדיין בשלב זה`);
+      return;
+    }
+    if (!confirm(`למחוק את השלב "${s.label}"?`)) return;
+    const { error } = await supabase.from("kanban_statuses").delete().eq("id", s.id);
+    if (error) toast.error(error.message);
+    else toast.success("השלב נמחק");
+  }
+  async function moveStatus(s: KanbanStatus, dir: -1 | 1) {
+    const sorted = [...statuses].sort((a, b) => a.position - b.position);
+    const idx = sorted.findIndex((x) => x.id === s.id);
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const other = sorted[swapIdx];
+    await supabase.from("kanban_statuses").update({ position: other.position }).eq("id", s.id);
+    await supabase.from("kanban_statuses").update({ position: s.position }).eq("id", other.id);
+  }
+
   if (!authed || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center text-muted-foreground">
