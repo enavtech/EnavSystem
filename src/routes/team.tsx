@@ -301,18 +301,18 @@ function TeamPage() {
   // KPI calc
   const kpi = (() => {
     const total = tasks.length;
-    const done = tasks.filter((t) => t.status === "done").length;
+    const done = tasks.filter((t) => isDoneStatus(t.status)).length;
     const inProgress = tasks.filter((t) => t.status === "in_progress").length;
     const blocked = tasks.filter((t) => t.status === "blocked").length;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const overdue = tasks.filter(
       (t) =>
-        t.status !== "done" &&
+        !isDoneStatus(t.status) &&
         t.due_date &&
         new Date(t.due_date).getTime() < today.getTime()
     ).length;
-    const urgent = tasks.filter((t) => t.priority === "urgent" && t.status !== "done").length;
+    const urgent = tasks.filter((t) => t.priority === "urgent" && !isDoneStatus(t.status)).length;
     return { total, done, inProgress, blocked, overdue, urgent };
   })();
 
