@@ -407,11 +407,16 @@ function TeamPage() {
 
         {/* Views */}
         {tab === "kanban" && (
-          <div className="grid gap-3 md:grid-cols-4">
-            {INTERNAL_STATUSES.map((s) => {
-              const items = filteredTasks.filter((t) => t.status === s.id);
-              const col = internalStatusColor(s.id);
-              const isOver = dragOverCol === s.id;
+          <div
+            className="grid gap-3"
+            style={{
+              gridTemplateColumns: `repeat(${Math.max(statuses.length, 1)}, minmax(220px, 1fr))`,
+            }}
+          >
+            {statuses.map((s) => {
+              const items = filteredTasks.filter((t) => t.status === s.status_key);
+              const col = s.color;
+              const isOver = dragOverCol === s.status_key;
               return (
                 <div
                   key={s.id}
@@ -424,7 +429,7 @@ function TeamPage() {
                     if (draggingId) {
                       e.preventDefault();
                       e.dataTransfer.dropEffect = "move";
-                      if (dragOverCol !== s.id) setDragOverCol(s.id);
+                      if (dragOverCol !== s.status_key) setDragOverCol(s.status_key);
                     }
                   }}
                   onDragLeave={(e) => {
@@ -435,7 +440,7 @@ function TeamPage() {
                     const id = e.dataTransfer.getData("text/plain") || draggingId;
                     setDragOverCol(null);
                     setDraggingId(null);
-                    if (id) void handleDrop(id, s.id);
+                    if (id) void handleDrop(id, s.status_key);
                   }}
                 >
                   <div className="mb-3 flex items-center justify-between">
