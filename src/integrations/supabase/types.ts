@@ -170,6 +170,39 @@ export type Database = {
           },
         ]
       }
+      kanban_statuses: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_done: boolean
+          label: string
+          position: number
+          status_key: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_done?: boolean
+          label: string
+          position?: number
+          status_key: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_done?: boolean
+          label?: string
+          position?: number
+          status_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       plans: {
         Row: {
           accent_color: string | null

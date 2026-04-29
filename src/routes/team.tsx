@@ -30,15 +30,13 @@ import {
   LayoutGrid,
   BarChart3,
   Pencil,
+  Settings2,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { isAdmin } from "@/lib/admin-session";
 import { cn } from "@/lib/utils";
 import { ColorPicker } from "@/components/ColorPicker";
-import {
-  DEFAULT_STATUS_COLORS,
-  getStatusColor,
-  readableTextOn,
-} from "@/lib/plans";
 
 export const Route = createFileRoute("/team")({
   component: TeamPage,
@@ -68,28 +66,16 @@ type PlanLite = {
 };
 type ClientTaskLite = { id: string; title: string; plan_id: string };
 
-const INTERNAL_STATUSES = [
-  { id: "todo", label: "להתחיל" },
-  { id: "in_progress", label: "בתהליך" },
-  { id: "blocked", label: "חסום" },
-  { id: "done", label: "הושלם" },
-] as const;
-
-/** Internal-task status → matches the Hebrew client status colors so admins see consistency. */
-const INTERNAL_STATUS_TO_CLIENT: Record<string, string> = {
-  todo: "לא התחיל",
-  in_progress: "בתהליך",
-  blocked: "מעוכב",
-  done: "הושלם",
+type KanbanStatus = {
+  id: string;
+  status_key: string;
+  label: string;
+  color: string;
+  position: number;
+  is_done: boolean;
 };
 
-function internalStatusColor(
-  internal: string,
-  planStatusColors?: Record<string, string> | null
-) {
-  const clientKey = INTERNAL_STATUS_TO_CLIENT[internal] ?? "לא התחיל";
-  return getStatusColor(clientKey, planStatusColors);
-}
+const FALLBACK_STATUS_COLOR = "#94a3b8";
 
 const PRIORITIES = [
   { id: "low", label: "נמוכה" },
@@ -113,6 +99,7 @@ function TeamPage() {
   const [tasks, setTasks] = useState<InternalTask[]>([]);
   const [plans, setPlans] = useState<PlanLite[]>([]);
   const [clientTasks, setClientTasks] = useState<ClientTaskLite[]>([]);
+  const [statuses, setStatuses] = useState<KanbanStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -129,6 +116,9 @@ function TeamPage() {
   const [showMembers, setShowMembers] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
 
+  // Statuses (Kanban stages) dialog
+  const [showStatuses, setShowStatuses] = useState(false);
+
   useEffect(() => {
     if (!isAdmin()) {
       navigate({ to: "/login" });
@@ -138,7 +128,7 @@ function TeamPage() {
   }, [navigate]);
 
   async function loadAll() {
-    const [m, t, p, ct] = await Promise.all([
+    const [m, t, p, ct, ks] = await Promise.all([
       supabase.from("team_members").select("*").order("created_at"),
       supabase.from("internal_tasks").select("*").order("created_at", { ascending: false }),
       supabase
@@ -146,11 +136,13 @@ function TeamPage() {
         .select("id,name,slug,archived,accent_color,status_colors")
         .order("name"),
       supabase.from("tasks").select("id,title,plan_id"),
+      supabase.from("kanban_statuses").select("*").order("position"),
     ]);
     setMembers((m.data ?? []) as Member[]);
     setTasks((t.data ?? []) as InternalTask[]);
     setPlans((p.data ?? []) as unknown as PlanLite[]);
     setClientTasks((ct.data ?? []) as ClientTaskLite[]);
+    setStatuses((ks.data ?? []) as KanbanStatus[]);
     setLoading(false);
   }
 
@@ -163,6 +155,9 @@ function TeamPage() {
         loadAll()
       )
       .on("postgres_changes", { event: "*", schema: "public", table: "team_members" }, () =>
+        loadAll()
+      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "kanban_statuses" }, () =>
         loadAll()
       )
       .subscribe();
@@ -186,6 +181,13 @@ function TeamPage() {
     clientTasks.forEach((c) => m.set(c.id, c));
     return m;
   }, [clientTasks]);
+  const doneKeys = useMemo(
+    () => new Set(statuses.filter((s) => s.is_done).map((s) => s.status_key)),
+    [statuses]
+  );
+  function isDoneStatus(key: string) {
+    return doneKeys.has(key);
+  }
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -244,8 +246,8 @@ function TeamPage() {
       prev.map((x) => (x.id === taskId ? { ...x, status: newStatus } : x))
     );
     const patch: { status: string; completed_at?: string | null } = { status: newStatus };
-    if (newStatus === "done") patch.completed_at = new Date().toISOString();
-    else if (t.status === "done") patch.completed_at = null;
+    if (isDoneStatus(newStatus)) patch.completed_at = new Date().toISOString();
+    else if (isDoneStatus(t.status)) patch.completed_at = null;
     const { error } = await supabase
       .from("internal_tasks")
       .update(patch)
@@ -277,6 +279,45 @@ function TeamPage() {
     await supabase.from("team_members").delete().eq("id", id);
   }
 
+  async function addStatus() {
+    const label = prompt("שם השלב החדש:")?.trim();
+    if (!label) return;
+    // Generate a unique key based on existing keys
+    let key = `stage_${Date.now().toString(36)}`;
+    const maxPos = statuses.reduce((m, s) => Math.max(m, s.position), -1);
+    const palette = ["#94a3b8", "#f59e0b", "#dc2626", "#16a34a", "#3b82f6", "#a855f7", "#ec4899", "#14b8a6"];
+    const color = palette[(maxPos + 1) % palette.length];
+    const { error } = await supabase
+      .from("kanban_statuses")
+      .insert({ status_key: key, label, color, position: maxPos + 1, is_done: false });
+    if (error) toast.error(error.message);
+    else toast.success("שלב נוסף");
+  }
+  async function updateStatus(id: string, patch: Partial<KanbanStatus>) {
+    const { error } = await supabase.from("kanban_statuses").update(patch).eq("id", id);
+    if (error) toast.error(error.message);
+  }
+  async function removeStatus(s: KanbanStatus) {
+    const inUse = tasks.filter((t) => t.status === s.status_key).length;
+    if (inUse > 0) {
+      toast.error(`לא ניתן למחוק - ${inUse} משימות עדיין בשלב זה`);
+      return;
+    }
+    if (!confirm(`למחוק את השלב "${s.label}"?`)) return;
+    const { error } = await supabase.from("kanban_statuses").delete().eq("id", s.id);
+    if (error) toast.error(error.message);
+    else toast.success("השלב נמחק");
+  }
+  async function moveStatus(s: KanbanStatus, dir: -1 | 1) {
+    const sorted = [...statuses].sort((a, b) => a.position - b.position);
+    const idx = sorted.findIndex((x) => x.id === s.id);
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const other = sorted[swapIdx];
+    await supabase.from("kanban_statuses").update({ position: other.position }).eq("id", s.id);
+    await supabase.from("kanban_statuses").update({ position: s.position }).eq("id", other.id);
+  }
+
   if (!authed || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center text-muted-foreground">
@@ -288,18 +329,18 @@ function TeamPage() {
   // KPI calc
   const kpi = (() => {
     const total = tasks.length;
-    const done = tasks.filter((t) => t.status === "done").length;
+    const done = tasks.filter((t) => isDoneStatus(t.status)).length;
     const inProgress = tasks.filter((t) => t.status === "in_progress").length;
     const blocked = tasks.filter((t) => t.status === "blocked").length;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const overdue = tasks.filter(
       (t) =>
-        t.status !== "done" &&
+        !isDoneStatus(t.status) &&
         t.due_date &&
         new Date(t.due_date).getTime() < today.getTime()
     ).length;
-    const urgent = tasks.filter((t) => t.priority === "urgent" && t.status !== "done").length;
+    const urgent = tasks.filter((t) => t.priority === "urgent" && !isDoneStatus(t.status)).length;
     return { total, done, inProgress, blocked, overdue, urgent };
   })();
 
@@ -328,6 +369,9 @@ function TeamPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowStatuses(true)}>
+              <Settings2 className="ms-2 h-4 w-4" /> שלבים ({statuses.length})
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowMembers(true)}>
               <Users className="ms-2 h-4 w-4" /> צוות ({members.filter((m) => m.active).length})
             </Button>
@@ -394,11 +438,16 @@ function TeamPage() {
 
         {/* Views */}
         {tab === "kanban" && (
-          <div className="grid gap-3 md:grid-cols-4">
-            {INTERNAL_STATUSES.map((s) => {
-              const items = filteredTasks.filter((t) => t.status === s.id);
-              const col = internalStatusColor(s.id);
-              const isOver = dragOverCol === s.id;
+          <div
+            className="grid gap-3"
+            style={{
+              gridTemplateColumns: `repeat(${Math.max(statuses.length, 1)}, minmax(220px, 1fr))`,
+            }}
+          >
+            {statuses.map((s) => {
+              const items = filteredTasks.filter((t) => t.status === s.status_key);
+              const col = s.color;
+              const isOver = dragOverCol === s.status_key;
               return (
                 <div
                   key={s.id}
@@ -411,7 +460,7 @@ function TeamPage() {
                     if (draggingId) {
                       e.preventDefault();
                       e.dataTransfer.dropEffect = "move";
-                      if (dragOverCol !== s.id) setDragOverCol(s.id);
+                      if (dragOverCol !== s.status_key) setDragOverCol(s.status_key);
                     }
                   }}
                   onDragLeave={(e) => {
@@ -422,7 +471,7 @@ function TeamPage() {
                     const id = e.dataTransfer.getData("text/plain") || draggingId;
                     setDragOverCol(null);
                     setDraggingId(null);
-                    if (id) void handleDrop(id, s.id);
+                    if (id) void handleDrop(id, s.status_key);
                   }}
                 >
                   <div className="mb-3 flex items-center justify-between">
@@ -450,6 +499,7 @@ function TeamPage() {
                         planStatusColors={
                           t.plan_id ? planMap.get(t.plan_id)?.status_colors ?? null : null
                         }
+                        statuses={statuses}
                         onEdit={() => setEditing(t)}
                         onDelete={() => deleteTask(t.id)}
                         onStatus={(st) => quickStatus(t.id, st)}
@@ -485,7 +535,7 @@ function TeamPage() {
               .map((p) => {
                 const items = filteredTasks.filter((t) => t.plan_id === p.id);
                 if (items.length === 0 && filterPlan !== "all") return null;
-                const done = items.filter((i) => i.status === "done").length;
+                const done = items.filter((i) => isDoneStatus(i.status)).length;
                 return (
                   <Card
                     key={p.id}
@@ -547,6 +597,7 @@ function TeamPage() {
                             clientTask={
                               t.client_task_id ? clientTaskMap.get(t.client_task_id) : undefined
                             }
+                            statuses={statuses}
                             onEdit={() => setEditing(t)}
                             onDelete={() => deleteTask(t.id)}
                             onStatus={(st) => quickStatus(t.id, st)}
@@ -572,6 +623,7 @@ function TeamPage() {
                         member={t.assignee_id ? memberMap.get(t.assignee_id) : undefined}
                         plan={undefined}
                         clientTask={undefined}
+                        statuses={statuses}
                         onEdit={() => setEditing(t)}
                         onDelete={() => deleteTask(t.id)}
                         onStatus={(st) => quickStatus(t.id, st)}
@@ -597,7 +649,7 @@ function TeamPage() {
                 )}
                 {members.map((m) => {
                   const mTasks = tasks.filter((t) => t.assignee_id === m.id);
-                  const mDone = mTasks.filter((t) => t.status === "done").length;
+                  const mDone = mTasks.filter((t) => isDoneStatus(t.status)).length;
                   const mOpen = mTasks.length - mDone;
                   const pct = mTasks.length
                     ? Math.round((mDone / mTasks.length) * 100)
@@ -655,7 +707,7 @@ function TeamPage() {
                   .map((p) => {
                     const pTasks = tasks.filter((t) => t.plan_id === p.id);
                     if (pTasks.length === 0) return null;
-                    const pDone = pTasks.filter((t) => t.status === "done").length;
+                    const pDone = pTasks.filter((t) => isDoneStatus(t.status)).length;
                     const pct = Math.round((pDone / pTasks.length) * 100);
                     const c = p.accent_color ?? "#2D4A6B";
                     return (
@@ -734,8 +786,16 @@ function TeamPage() {
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {INTERNAL_STATUSES.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                      {statuses.map((s) => (
+                        <SelectItem key={s.id} value={s.status_key}>
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: s.color }}
+                            />
+                            {s.label}
+                          </span>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -883,6 +943,43 @@ function TeamPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Statuses (Kanban stages) dialog */}
+      <Dialog open={showStatuses} onOpenChange={setShowStatuses}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>שלבי לוח המשימות</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              ערכו שמות וצבעים, הוסיפו או הסירו שלבים, וסדרו אותם. סמנו "סיום" כדי לציין שזהו שלב השלמה.
+            </p>
+          </DialogHeader>
+          <div className="space-y-2">
+            {statuses
+              .slice()
+              .sort((a, b) => a.position - b.position)
+              .map((s, i, arr) => (
+                <StatusRow
+                  key={s.id}
+                  status={s}
+                  isFirst={i === 0}
+                  isLast={i === arr.length - 1}
+                  onUpdate={(patch) => updateStatus(s.id, patch)}
+                  onRemove={() => removeStatus(s)}
+                  onMoveUp={() => moveStatus(s, -1)}
+                  onMoveDown={() => moveStatus(s, 1)}
+                />
+              ))}
+            {statuses.length === 0 && (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                אין שלבים מוגדרים
+              </div>
+            )}
+            <Button variant="outline" className="w-full" onClick={addStatus}>
+              <Plus className="ms-2 h-4 w-4" /> הוסף שלב חדש
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -945,6 +1042,7 @@ function InternalTaskCard({
   plan,
   clientTask,
   planStatusColors,
+  statuses,
   onEdit,
   onDelete,
   onStatus,
@@ -958,6 +1056,7 @@ function InternalTaskCard({
   plan?: PlanLite;
   clientTask?: ClientTaskLite;
   planStatusColors?: Record<string, string> | null;
+  statuses: KanbanStatus[];
   onEdit: () => void;
   onDelete: () => void;
   onStatus: (s: string) => void;
@@ -968,12 +1067,15 @@ function InternalTaskCard({
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const currentStatus = statuses.find((s) => s.status_key === task.status);
+  const isDoneTask = currentStatus?.is_done ?? false;
   const isOverdue =
     task.due_date &&
-    task.status !== "done" &&
+    !isDoneTask &&
     new Date(task.due_date).getTime() < today.getTime();
 
-  const statusColor = internalStatusColor(task.status, planStatusColors);
+  void planStatusColors; // accepted for API compatibility, color now from statuses
+  const statusColor = currentStatus?.color ?? FALLBACK_STATUS_COLOR;
   const memberColor = member?.color ?? "#64748b";
   const planAccent = plan?.accent_color ?? null;
 
@@ -1076,9 +1178,15 @@ function InternalTaskCard({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {INTERNAL_STATUSES.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.label}
+            {statuses.map((s) => (
+              <SelectItem key={s.id} value={s.status_key}>
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: s.color }}
+                  />
+                  {s.label}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -1150,6 +1258,104 @@ function MemberRow({
       >
         <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
       </Button>
+    </div>
+  );
+}
+
+function StatusRow({
+  status,
+  isFirst,
+  isLast,
+  onUpdate,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+}: {
+  status: KanbanStatus;
+  isFirst: boolean;
+  isLast: boolean;
+  onUpdate: (patch: Partial<KanbanStatus>) => void | Promise<void>;
+  onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}) {
+  const [label, setLabel] = useState(status.label);
+  const [color, setColor] = useState(status.color);
+
+  useEffect(() => {
+    setLabel(status.label);
+    setColor(status.color);
+  }, [status.label, status.color]);
+
+  function saveLabel() {
+    const trimmed = label.trim();
+    if (!trimmed || trimmed === status.label) {
+      setLabel(status.label);
+      return;
+    }
+    void onUpdate({ label: trimmed });
+  }
+
+  function saveColor(c: string) {
+    setColor(c);
+    void onUpdate({ color: c });
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
+      <ColorPicker value={color} onChange={saveColor} size="sm" />
+      <Input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        onBlur={saveLabel}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        className="h-8 flex-1 text-sm"
+      />
+      <label className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={status.is_done}
+          onChange={(e) => void onUpdate({ is_done: e.target.checked })}
+          className="h-3.5 w-3.5 cursor-pointer accent-primary"
+        />
+        סיום
+      </label>
+      <div className="flex items-center gap-0.5">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          disabled={isFirst}
+          onClick={onMoveUp}
+          title="הזז למעלה"
+        >
+          <ArrowUp className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          disabled={isLast}
+          onClick={onMoveDown}
+          title="הזז למטה"
+        >
+          <ArrowDown className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          onClick={onRemove}
+          title="מחק שלב"
+        >
+          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </div>
     </div>
   );
 }
