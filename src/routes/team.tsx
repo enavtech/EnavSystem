@@ -954,6 +954,43 @@ function TeamPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Statuses (Kanban stages) dialog */}
+      <Dialog open={showStatuses} onOpenChange={setShowStatuses}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>שלבי לוח המשימות</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              ערכו שמות וצבעים, הוסיפו או הסירו שלבים, וסדרו אותם. סמנו "סיום" כדי לציין שזהו שלב השלמה.
+            </p>
+          </DialogHeader>
+          <div className="space-y-2">
+            {statuses
+              .slice()
+              .sort((a, b) => a.position - b.position)
+              .map((s, i, arr) => (
+                <StatusRow
+                  key={s.id}
+                  status={s}
+                  isFirst={i === 0}
+                  isLast={i === arr.length - 1}
+                  onUpdate={(patch) => updateStatus(s.id, patch)}
+                  onRemove={() => removeStatus(s)}
+                  onMoveUp={() => moveStatus(s, -1)}
+                  onMoveDown={() => moveStatus(s, 1)}
+                />
+              ))}
+            {statuses.length === 0 && (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                אין שלבים מוגדרים
+              </div>
+            )}
+            <Button variant="outline" className="w-full" onClick={addStatus}>
+              <Plus className="ms-2 h-4 w-4" /> הוסף שלב חדש
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
