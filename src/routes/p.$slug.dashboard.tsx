@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { usePlanRealtime } from "@/hooks/usePlanRealtime";
+import type { Task } from "@/hooks/usePlanRealtime";
 import { supabase } from "@/integrations/supabase/client";
 import { isAdmin } from "@/lib/admin-session";
 import { Card } from "@/components/ui/card";
@@ -15,6 +16,12 @@ import {
   Calendar,
   TrendingUp,
   Users,
+  PlusCircle,
+  CheckCircle2,
+  RefreshCw,
+  XCircle,
+  MessageCircle,
+  ListChecks,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -51,6 +58,7 @@ function DashboardPage() {
   const navigate = useNavigate();
   const { plan, tasks, steps, comments, loading } = usePlanRealtime(slug);
   const [activity, setActivity] = useState<ActivityRow[]>([]);
+  const [activityFilter, setActivityFilter] = useState<string>("all");
 
   useEffect(() => {
     if (!isAdmin()) navigate({ to: "/login" });
@@ -392,6 +400,32 @@ function DashboardPage() {
           </Card>
         </div>
 
+        {/* Gantt / Timeline */}
+        <Card className="mb-6 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">ציר זמן משימות</h3>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-[oklch(0.55_0.19_25)]" />
+                באיחור
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-[oklch(0.7_0.17_70)]" />
+                קרוב
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-[oklch(0.5_0.13_230)]" />
+                בתהליך
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-[oklch(0.55_0.13_160)]" />
+                הושלם
+              </span>
+            </div>
+          </div>
+          <GanttSection tasks={tasks} />
+        </Card>
+
         {/* Engagement + Activity */}
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="p-5">
@@ -439,32 +473,85 @@ function DashboardPage() {
           </Card>
 
           <Card className="p-5 lg:col-span-2">
-            <h3 className="mb-3 text-sm font-semibold">פיד פעילות</h3>
-            <div className="max-h-[360px] space-y-2 overflow-y-auto">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">לוג פעילות</h3>
+              <div className="flex flex-wrap gap-1">
+                {(["all", "created", "completed", "updated", "deleted", "commented"] as const).map(
+                  (f) => (
+                    <button
+                      key={f}
+                      onClick={() => setActivityFilter(f)}
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                        activityFilter === f
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      {f === "all"
+                        ? "הכל"
+                        : f === "created"
+                          ? "נוצר"
+                          : f === "completed"
+                            ? "הושלם"
+                            : f === "updated"
+                              ? "עודכן"
+                              : f === "deleted"
+                                ? "נמחק"
+                                : "תגובה"}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+            <div className="max-h-[360px] space-y-1.5 overflow-y-auto">
               {activity.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   אין עדיין פעילות. שינויים יופיעו כאן.
                 </p>
               )}
-              {activity.map((a) => (
-                <div key={a.id} className="flex items-start gap-3 rounded-lg p-2 hover:bg-muted/40">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-medium text-primary">
-                    {a.actor_name.charAt(0)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm">
-                      <span className="font-medium">{a.actor_name}</span>{" "}
-                      <span className="text-muted-foreground">{actionLabel(a.action)}</span>{" "}
-                      {a.details?.title && (
-                        <span className="text-foreground">"{a.details.title}"</span>
-                      )}
+              {activity
+                .filter(
+                  (a) =>
+                    activityFilter === "all" ||
+                    a.action === activityFilter ||
+                    (activityFilter === "commented" && a.action === "commented")
+                )
+                .map((a) => {
+                  const { icon: ActionIcon, bg, fg } = actionStyle(a.action);
+                  return (
+                    <div
+                      key={a.id}
+                      className="flex items-start gap-3 rounded-lg p-2 hover:bg-muted/40"
+                    >
+                      <div
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                        style={{ backgroundColor: bg }}
+                      >
+                        <ActionIcon
+                          className="h-3.5 w-3.5"
+                          style={{ color: fg }}
+                          strokeWidth={2.5}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm">
+                          <span className="font-medium">{a.actor_name}</span>{" "}
+                          <span className="text-muted-foreground">
+                            {actionLabel(a.action)}
+                          </span>{" "}
+                          {a.details?.title && (
+                            <span className="text-foreground">
+                              &ldquo;{a.details.title}&rdquo;
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {new Date(a.created_at).toLocaleString("he-IL")}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {new Date(a.created_at).toLocaleString("he-IL")}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           </Card>
         </div>
@@ -475,25 +562,191 @@ function DashboardPage() {
 
 function actionLabel(a: string): string {
   switch (a) {
-    case "created":
-      return "יצר/ה משימה";
-    case "completed":
-      return "סיים/ה משימה";
-    case "reopened":
-      return "פתח/ה מחדש משימה";
-    case "updated":
-      return "עדכן/ה משימה";
-    case "deleted":
-      return "מחק/ה משימה";
-    case "commented":
-      return "הגיב/ה על";
-    case "step_added":
-      return "הוסיף/ה תת-משימה";
-    case "step_done":
-      return "סימן/ה תת-משימה";
-    default:
-      return a;
+    case "created":    return "יצר/ה משימה";
+    case "completed":  return "סיים/ה משימה";
+    case "reopened":   return "פתח/ה מחדש משימה";
+    case "updated":    return "עדכן/ה משימה";
+    case "deleted":    return "מחק/ה משימה";
+    case "commented":  return "הגיב/ה על";
+    case "step_added": return "הוסיף/ה תת-משימה";
+    case "step_done":  return "סימן/ה תת-משימה";
+    default:           return a;
   }
+}
+
+type IconComponent = React.ComponentType<{ className?: string; style?: React.CSSProperties; strokeWidth?: number }>;
+
+function actionStyle(action: string): { icon: IconComponent; bg: string; fg: string } {
+  switch (action) {
+    case "created":
+      return { icon: PlusCircle,    bg: "oklch(0.5 0.13 230 / 0.15)",  fg: "oklch(0.5 0.13 230)" };
+    case "completed":
+      return { icon: CheckCircle2,  bg: "oklch(0.55 0.13 160 / 0.15)", fg: "oklch(0.45 0.13 160)" };
+    case "reopened":
+      return { icon: RefreshCw,     bg: "oklch(0.7 0.17 70 / 0.15)",   fg: "oklch(0.6 0.17 70)" };
+    case "updated":
+      return { icon: ListChecks,    bg: "oklch(0.6 0.1 280 / 0.15)",   fg: "oklch(0.5 0.1 280)" };
+    case "deleted":
+      return { icon: XCircle,       bg: "oklch(0.55 0.19 25 / 0.15)",  fg: "oklch(0.5 0.19 25)" };
+    case "commented":
+      return { icon: MessageCircle, bg: "oklch(0.6 0.08 200 / 0.15)",  fg: "oklch(0.5 0.08 200)" };
+    default:
+      return { icon: Activity,      bg: "oklch(0.5 0.03 250 / 0.15)",  fg: "oklch(0.5 0.03 250)" };
+  }
+}
+
+// ─── Gantt Chart ────────────────────────────────────────────────────────────
+
+function GanttSection({ tasks }: { tasks: Task[] }) {
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const windowStart = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - 7);
+    return d;
+  }, [today]);
+
+  const windowEnd = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + 21);
+    return d;
+  }, [today]);
+
+  const WINDOW_DAYS = 28;
+
+  const visible = useMemo(() => {
+    return tasks
+      .filter((t) => {
+        if (!t.deadline) return false;
+        const dl = new Date(t.deadline);
+        dl.setHours(0, 0, 0, 0);
+        return dl >= windowStart && dl <= windowEnd;
+      })
+      .sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? ""))
+      .slice(0, 25);
+  }, [tasks, windowStart, windowEnd]);
+
+  if (visible.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        אין משימות עם תאריך יעד ב-28 ימים הקרובים.
+      </p>
+    );
+  }
+
+  function toPct(date: Date): number {
+    const diff = (date.getTime() - windowStart.getTime()) / (1000 * 60 * 60 * 24);
+    return (diff / WINDOW_DAYS) * 100;
+  }
+
+  const todayPct = toPct(today);
+
+  const dayLabels = [0, 7, 14, 21, 28].map((offset) => {
+    const d = new Date(windowStart);
+    d.setDate(d.getDate() + offset);
+    return {
+      label: `${d.getDate()}/${d.getMonth() + 1}`,
+      pct: (offset / WINDOW_DAYS) * 100,
+    };
+  });
+
+  return (
+    <div className="overflow-x-auto">
+      {/* X-axis labels */}
+      <div className="flex mb-2 min-w-[500px]">
+        <div className="w-[32%] shrink-0" />
+        <div className="relative flex-1 h-4">
+          {dayLabels.map((l) => (
+            <span
+              key={l.pct}
+              className="absolute text-[10px] text-muted-foreground -translate-x-1/2"
+              style={{ left: `${l.pct}%` }}
+            >
+              {l.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Rows */}
+      <div className="relative min-w-[500px]">
+        {/* Background grid + today line (spans all rows) */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ marginInlineStart: "32%" }}
+        >
+          {dayLabels.map((l) => (
+            <div
+              key={l.pct}
+              className="absolute inset-y-0 w-px bg-border/40"
+              style={{ left: `${l.pct}%` }}
+            />
+          ))}
+          <div
+            className="absolute inset-y-0 w-0.5 bg-urgent/70 z-10"
+            style={{ left: `${todayPct}%` }}
+          />
+        </div>
+
+        {visible.map((t) => {
+          const deadline = new Date(t.deadline!);
+          deadline.setHours(0, 0, 0, 0);
+          const created = new Date(t.created_at);
+          created.setHours(0, 0, 0, 0);
+
+          const barStartPct = Math.max(0, toPct(created < windowStart ? windowStart : created));
+          const barEndPct = Math.min(100, toPct(deadline));
+          const barWidthPct = Math.max(0.8, barEndPct - barStartPct);
+
+          const days = Math.round(
+            (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          const isDone = t.status === "הושלם";
+          const barColor = isDone
+            ? "oklch(0.55 0.13 160)"
+            : days < 0
+              ? "oklch(0.55 0.19 25)"
+              : days <= 3
+                ? "oklch(0.7 0.17 70)"
+                : "oklch(0.5 0.13 230)";
+
+          return (
+            <div key={t.id} className="mb-1 flex h-7 items-center">
+              <div
+                className="w-[32%] shrink-0 truncate pe-2 text-[11px] text-muted-foreground"
+                dir="rtl"
+              >
+                {t.title}
+              </div>
+              <div className="relative flex-1 h-4">
+                <div
+                  className="absolute top-0 h-full rounded-full opacity-85 transition-all"
+                  style={{
+                    left: `${barStartPct}%`,
+                    width: `${barWidthPct}%`,
+                    backgroundColor: barColor,
+                  }}
+                />
+                {/* Deadline dot */}
+                <div
+                  className="absolute top-0 z-20 h-4 w-1 rounded-full opacity-90"
+                  style={{
+                    left: `calc(${barEndPct}% - 2px)`,
+                    backgroundColor: barColor,
+                    filter: "brightness(0.7)",
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function KPI({

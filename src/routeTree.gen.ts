@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TeamRouteImport } from './routes/team'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
 import { Route as CTokenRouteImport } from './routes/c.$token'
@@ -21,9 +23,19 @@ const TeamRoute = TeamRouteImport.update({
   path: '/team',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GoalsRoute = GoalsRouteImport.update({
+  id: '/goals',
+  path: '/goals',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -49,7 +61,9 @@ const PSlugDashboardRoute = PSlugDashboardRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/goals': typeof GoalsRoute
   '/login': typeof LoginRoute
+  '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
   '/c/$token': typeof CTokenRoute
   '/p/$slug': typeof PSlugRouteWithChildren
@@ -57,7 +71,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/goals': typeof GoalsRoute
   '/login': typeof LoginRoute
+  '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
   '/c/$token': typeof CTokenRoute
   '/p/$slug': typeof PSlugRouteWithChildren
@@ -66,7 +82,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/goals': typeof GoalsRoute
   '/login': typeof LoginRoute
+  '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
   '/c/$token': typeof CTokenRoute
   '/p/$slug': typeof PSlugRouteWithChildren
@@ -76,17 +94,29 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/goals'
     | '/login'
+    | '/settings'
     | '/team'
     | '/c/$token'
     | '/p/$slug'
     | '/p/$slug/dashboard'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/team' | '/c/$token' | '/p/$slug' | '/p/$slug/dashboard'
+  to:
+    | '/'
+    | '/goals'
+    | '/login'
+    | '/settings'
+    | '/team'
+    | '/c/$token'
+    | '/p/$slug'
+    | '/p/$slug/dashboard'
   id:
     | '__root__'
     | '/'
+    | '/goals'
     | '/login'
+    | '/settings'
     | '/team'
     | '/c/$token'
     | '/p/$slug'
@@ -95,7 +125,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GoalsRoute: typeof GoalsRoute
   LoginRoute: typeof LoginRoute
+  SettingsRoute: typeof SettingsRoute
   TeamRoute: typeof TeamRoute
   CTokenRoute: typeof CTokenRoute
   PSlugRoute: typeof PSlugRouteWithChildren
@@ -110,11 +142,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/goals': {
+      id: '/goals'
+      path: '/goals'
+      fullPath: '/goals'
+      preLoaderRoute: typeof GoalsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -160,7 +206,9 @@ const PSlugRouteWithChildren = PSlugRoute._addFileChildren(PSlugRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GoalsRoute: GoalsRoute,
   LoginRoute: LoginRoute,
+  SettingsRoute: SettingsRoute,
   TeamRoute: TeamRoute,
   CTokenRoute: CTokenRoute,
   PSlugRoute: PSlugRouteWithChildren,

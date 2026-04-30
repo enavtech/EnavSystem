@@ -33,6 +33,7 @@ import {
   Settings2,
   ArrowUp,
   ArrowDown,
+  Target,
 } from "lucide-react";
 import { isAdmin } from "@/lib/admin-session";
 import { cn } from "@/lib/utils";
@@ -369,6 +370,13 @@ function TeamPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              to="/goals"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              <Target className="h-3.5 w-3.5" />
+              יעדי צוות
+            </Link>
             <Button variant="outline" size="sm" onClick={() => setShowStatuses(true)}>
               <Settings2 className="ms-2 h-4 w-4" /> שלבים ({statuses.length})
             </Button>

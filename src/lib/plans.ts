@@ -247,3 +247,29 @@ export function parseSheetRows(rows: unknown[][]): ParsedPlan {
   }
   return { name, subtitle, tasks };
 }
+
+export function calcHealthScore(s: {
+  total: number;
+  done: number;
+  urgent: number;
+  overdue: number;
+}): number {
+  if (s.total === 0) return 100;
+  let score = Math.round((s.done / s.total) * 100);
+  score -= Math.min(s.overdue * 8, 30);
+  score -= Math.min(s.urgent * 3, 15);
+  if (s.overdue === 0) score += 10;
+  return Math.max(0, Math.min(100, score));
+}
+
+export function healthScoreBadge(score: number): string {
+  if (score >= 70) return "bg-success/15 border-success/25 text-success";
+  if (score >= 45) return "bg-warning/15 border-warning/30 text-warning-foreground";
+  return "bg-urgent/10 border-urgent/25 text-urgent";
+}
+
+export function healthScoreLabel(score: number): string {
+  if (score >= 70) return "בריא";
+  if (score >= 45) return "בינוני";
+  return "בסיכון";
+}

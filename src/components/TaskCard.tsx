@@ -36,9 +36,11 @@ interface Props {
   planId?: string;
   /** Per-plan status color overrides. */
   statusColors?: Record<string, string> | null;
+  /** When true, cards are non-interactive (presentation mode). */
+  readOnly?: boolean;
 }
 
-export function TaskCard({ task, steps, comments, isAdminView, planId, statusColors }: Props) {
+export function TaskCard({ task, steps, comments, isAdminView, planId, statusColors, readOnly }: Props) {
   const [open, setOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(task.title);
   const [editingNote, setEditingNote] = useState(task.note ?? "");
@@ -123,8 +125,8 @@ export function TaskCard({ task, steps, comments, isAdminView, planId, statusCol
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-soft)] transition-shadow hover:shadow-[var(--shadow-elevated)]">
       <div
-        className="relative flex items-start gap-3 p-3 cursor-pointer"
-        onClick={() => setOpen(!open)}
+        className={cn("relative flex items-start gap-3 p-3", !readOnly && "cursor-pointer")}
+        onClick={() => { if (!readOnly) setOpen(!open); }}
       >
         {/* Left status accent strip */}
         <span
@@ -204,12 +206,14 @@ export function TaskCard({ task, steps, comments, isAdminView, planId, statusCol
             )}
           </div>
         </div>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform",
-            open && "rotate-180"
-          )}
-        />
+        {!readOnly && (
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform",
+              open && "rotate-180"
+            )}
+          />
+        )}
       </div>
 
       {open && (
