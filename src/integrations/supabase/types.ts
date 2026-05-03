@@ -270,6 +270,7 @@ export type Database = {
           created_at: string
           id: string
           is_template: boolean
+          logo_url: string | null
           name: string
           share_token: string
           slug: string
@@ -284,6 +285,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_template?: boolean
+          logo_url?: string | null
           name: string
           share_token?: string
           slug: string
@@ -298,6 +300,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_template?: boolean
+          logo_url?: string | null
           name?: string
           share_token?: string
           slug?: string

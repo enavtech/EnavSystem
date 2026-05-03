@@ -81,6 +81,7 @@ function Index() {
   const [templateDialog, setTemplateDialog] = useState<PlanRow | null>(null);
   const [fromTemplateName, setFromTemplateName] = useState("");
   const [fromTemplateCreating, setFromTemplateCreating] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -89,6 +90,9 @@ function Index() {
       return;
     }
     setAuthed(true);
+    supabase.auth.getUser().then(({ data }) => {
+      setUserRole((data.user?.user_metadata?.role as string) ?? null);
+    });
   }, [navigate]);
 
   useEffect(() => {
@@ -358,13 +362,15 @@ function Index() {
               <Users className="h-3.5 w-3.5" />
               משימות הצוות
             </Link>
-            <Link
-              to="/settings"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              הגדרות
-            </Link>
+            {userRole === "admin" && (
+              <Link
+                to="/settings"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                הגדרות
+              </Link>
+            )}
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="ms-2 h-4 w-4" />
               יציאה
@@ -381,8 +387,8 @@ function Index() {
           <KpiCard label="באיחור" value={totals.o} accent="warning" />
         </div>
 
-        {/* Create + Import */}
-        <Card className="mb-8 p-6 shadow-[var(--shadow-elevated)]">
+        {/* Create + Import — admin only */}
+        {userRole === "admin" && <Card className="mb-8 p-6 shadow-[var(--shadow-elevated)]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">תוכנית חדשה</h2>
             <input
@@ -431,7 +437,7 @@ function Index() {
               </div>
             </div>
           )}
-        </Card>
+        </Card>}
 
         {/* Search & filter */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -495,15 +501,17 @@ function Index() {
                       <Share2 className="ms-2 h-3.5 w-3.5" />
                       לינק ללקוח
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-muted-foreground hover:text-primary"
-                      title="שמור כתבנית"
-                      onClick={() => saveAsTemplate(p)}
-                    >
-                      <LayoutTemplate className="h-3.5 w-3.5" />
-                    </Button>
+                    {userRole === "admin" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-primary"
+                        title="שמור כתבנית"
+                        onClick={() => saveAsTemplate(p)}
+                      >
+                        <LayoutTemplate className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Button size="sm" variant="ghost" onClick={() => toggleArchive(p)}>

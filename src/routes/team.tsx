@@ -36,6 +36,7 @@ import {
   Target,
 } from "lucide-react";
 import { isAdmin } from "@/lib/admin-session";
+import { syncTeamMembers } from "@/lib/admin-api";
 import { cn } from "@/lib/utils";
 import { ColorPicker } from "@/components/ColorPicker";
 
@@ -115,7 +116,6 @@ function TeamPage() {
 
   // Members dialog
   const [showMembers, setShowMembers] = useState(false);
-  const [newMemberName, setNewMemberName] = useState("");
 
   // Statuses (Kanban stages) dialog
   const [showStatuses, setShowStatuses] = useState(false);
@@ -149,7 +149,7 @@ function TeamPage() {
 
   useEffect(() => {
     if (!authed) return;
-    void loadAll();
+    void syncTeamMembers().then(() => loadAll()).catch(() => loadAll());
     const ch = supabase
       .channel("team-internal")
       .on("postgres_changes", { event: "*", schema: "public", table: "internal_tasks" }, () =>
@@ -262,22 +262,6 @@ function TeamPage() {
     if (!confirm("למחוק משימה פנימית זו?")) return;
     await supabase.from("internal_tasks").delete().eq("id", id);
     toast.success("נמחקה");
-  }
-
-  async function addMember() {
-    if (!newMemberName.trim()) return;
-    const { error } = await supabase
-      .from("team_members")
-      .insert({ name: newMemberName.trim() });
-    if (error) toast.error(error.message);
-    else {
-      toast.success("חבר/ת צוות נוסף/ה");
-      setNewMemberName("");
-    }
-  }
-  async function removeMember(id: string) {
-    if (!confirm("להסיר חבר/ת צוות?")) return;
-    await supabase.from("team_members").delete().eq("id", id);
   }
 
   async function addStatus() {
@@ -914,40 +898,28 @@ function TeamPage() {
           <DialogHeader>
             <DialogTitle>חברי צוות</DialogTitle>
             <p className="text-xs text-muted-foreground">
-              לחצו על מעגל הצבע שליד כל שם כדי להגדיר צבע ייחודי לחבר/ת הצוות. הצבע יופיע על משימותיהם.
+              חברי הצוות מסונכרנים אוטומטית מהמשתמשים הרשומים במערכת.
+              לחצו על מעגל הצבע לשינוי צבע ייחודי.
             </p>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                value={newMemberName}
-                onChange={(e) => setNewMemberName(e.target.value)}
-                placeholder="שם חבר/ת צוות"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addMember();
-                  }
-                }}
-              />
-              <Button onClick={addMember}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="space-y-1">
-              {members.map((m) => (
-                <MemberRow
-                  key={m.id}
-                  member={m}
-                  onRemove={() => removeMember(m.id)}
-                />
-              ))}
-              {members.length === 0 && (
-                <div className="py-6 text-center text-xs text-muted-foreground">
-                  אין חברי צוות עדיין
-                </div>
-              )}
-            </div>
+          <div className="space-y-2">
+            {members.map((m) => (
+              <MemberRow key={m.id} member={m} />
+            ))}
+            {members.length === 0 && (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                אין חברי צוות — הוסיפו משתמשים בהגדרות המערכת
+              </div>
+            )}
+          </div>
+          <div className="mt-2 border-t border-border pt-3">
+            <Link
+              to="/settings"
+              className="text-xs text-primary hover:underline"
+              onClick={() => setShowMembers(false)}
+            >
+              ← ניהול משתמשים בהגדרות
+            </Link>
           </div>
         </DialogContent>
       </Dialog>
@@ -1204,13 +1176,7 @@ function InternalTaskCard({
   );
 }
 
-function MemberRow({
-  member,
-  onRemove,
-}: {
-  member: Member;
-  onRemove: () => void;
-}) {
+function MemberRow({ member }: { member: Member }) {
   const [name, setName] = useState(member.name);
   const [color, setColor] = useState(member.color ?? "#64748b");
 
@@ -1258,14 +1224,6 @@ function MemberRow({
         }}
         className="h-8 flex-1 text-sm"
       />
-      <Button
-        size="icon"
-        variant="ghost"
-        className="h-7 w-7"
-        onClick={onRemove}
-      >
-        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-      </Button>
     </div>
   );
 }

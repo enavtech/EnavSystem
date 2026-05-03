@@ -53,12 +53,15 @@ type ActivityRow = {
   created_at: string;
 };
 
+type WeeklyRow = { action: string; created_at: string };
+
 function DashboardPage() {
   const { slug } = Route.useParams();
   const navigate = useNavigate();
   const { plan, tasks, steps, comments, loading } = usePlanRealtime(slug);
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [activityFilter, setActivityFilter] = useState<string>("all");
+  const [weeklyActivity, setWeeklyActivity] = useState<WeeklyRow[]>([]);
 
   useEffect(() => {
     if (!isAdmin()) navigate({ to: "/login" });
@@ -73,6 +76,16 @@ function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(50)
       .then(({ data }) => setActivity((data ?? []) as ActivityRow[]));
+
+    const eightWeeksAgo = new Date();
+    eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
+    void supabase
+      .from("activity_log")
+      .select("action,created_at")
+      .eq("plan_id", plan.id)
+      .gte("created_at", eightWeeksAgo.toISOString())
+      .order("created_at", { ascending: true })
+      .then(({ data }) => setWeeklyActivity((data ?? []) as WeeklyRow[]));
   }, [plan?.id]);
 
   const stats = useMemo(() => {
@@ -165,6 +178,32 @@ function DashboardPage() {
     });
     return days.map((d) => ({ ...d, ...map.get(d.date)! }));
   }, [activity]);
+
+  const weeklyTrend = useMemo(() => {
+    const buckets: { key: string; label: string; completed: number; created: number }[] = [];
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - d.getDay() - i * 7);
+      buckets.push({
+        key: d.toISOString().slice(0, 10),
+        label: `${d.getDate()}/${d.getMonth() + 1}`,
+        completed: 0,
+        created: 0,
+      });
+    }
+    weeklyActivity.forEach((a) => {
+      const d = new Date(a.created_at);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - d.getDay());
+      const key = d.toISOString().slice(0, 10);
+      const bucket = buckets.find((b) => b.key === key);
+      if (!bucket) return;
+      if (a.action === "completed") bucket.completed += 1;
+      if (a.action === "created") bucket.created += 1;
+    });
+    return buckets;
+  }, [weeklyActivity]);
 
   function exportCSV() {
     if (!plan) return;
@@ -424,6 +463,27 @@ function DashboardPage() {
             </div>
           </div>
           <GanttSection tasks={tasks} />
+        </Card>
+
+        {/* Weekly trend */}
+        <Card className="mb-6 p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">מגמת השלמה שבועית</h3>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div style={{ width: "100%", height: 220 }}>
+            <ResponsiveContainer>
+              <BarChart data={weeklyTrend} margin={{ left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="completed" fill="oklch(0.55 0.13 160)" name="הושלמו" radius={[3,3,0,0]} />
+                <Bar dataKey="created" fill="oklch(0.5 0.13 230)" name="נוצרו" radius={[3,3,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </Card>
 
         {/* Engagement + Activity */}

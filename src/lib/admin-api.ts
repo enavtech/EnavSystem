@@ -139,6 +139,20 @@ export const verifyAdminTokenFn = createServerFn({ method: "POST" })
   .inputValidator((d: { token: string }) => ({ token: String(d?.token ?? "") }))
   .handler(async ({ data }) => ({ valid: verifyAdminToken(data.token) }));
 
+// ─── Team members sync helpers ────────────────────────────────────────────
+
+const MEMBER_COLORS = [
+  "#4f46e5", "#0891b2", "#059669", "#d97706", "#dc2626",
+  "#7c3aed", "#db2777", "#ea580c", "#65a30d", "#0284c7",
+];
+
+async function upsertTeamMember(id: string, name: string, colorIndex: number) {
+  await supabaseAdmin.from("team_members").upsert(
+    { id, name, color: MEMBER_COLORS[colorIndex % MEMBER_COLORS.length], active: true },
+    { onConflict: "id", ignoreDuplicates: true }
+  );
+}
+
 // ─── Multi-admin management ────────────────────────────────────────────────
 
 export type AdminUser = {
@@ -175,13 +189,16 @@ export const createAdminUser = createServerFn({ method: "POST" })
     }
   )
   .handler(async ({ data }) => {
-    const { error } = await supabaseAdmin.auth.admin.createUser({
+    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
       email_confirm: true,
       user_metadata: { role: data.role, name: data.name },
     });
     if (error) throw new Error(error.message);
+    const { count } = await supabaseAdmin
+      .from("team_members").select("*", { count: "exact", head: true });
+    await upsertTeamMember(created.user.id, data.name || data.email, count ?? 0);
     return { success: true };
   });
 
@@ -193,6 +210,7 @@ export const updateAdminRole = createServerFn({ method: "POST" })
       user_metadata: { role: data.role, name: data.name },
     });
     if (error) throw new Error(error.message);
+    await supabaseAdmin.from("team_members").update({ name: data.name }).eq("id", data.userId);
     return { success: true };
   });
 
@@ -202,6 +220,7 @@ export const deleteAdminUser = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { data: user } = await supabaseAdmin.auth.admin.getUserById(data.userId);
     if (user.user?.user_metadata?.is_primary) throw new Error("Cannot delete primary admin");
+    await supabaseAdmin.from("team_members").delete().eq("id", data.userId);
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);
     return { success: true };
@@ -221,3 +240,15 @@ export const loginAdminBySession = createServerFn({ method: "POST" })
     if (!role) throw new Error("Not an admin user");
     return { token: makeToken(), role };
   });
+
+/** Sync team_members table from Supabase Auth users (idempotent, won't override existing colors) */
+export const syncTeamMembers = createServerFn({ method: "POST" }).handler(async () => {
+  const { data } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
+  let i = 0;
+  for (const u of data.users) {
+    const name = String(u.user_metadata?.name ?? u.email ?? "");
+    await upsertTeamMember(u.id, name, i);
+    i++;
+  }
+  return { synced: data.users.length };
+});

@@ -70,6 +70,7 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
   const planStatusColors =
     (plan.status_colors as Record<string, string> | null | undefined) ?? null;
   const accentColor = plan.accent_color ?? "#2D4A6B";
+  const logoUrl = plan.logo_url ?? null;
 
   const [nt, setNt] = useState({
     title: "",
@@ -235,19 +236,29 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
         {/* Header */}
         <header className="mb-5 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
           <div
-            className="h-24 bg-gradient-to-br from-primary/12 via-card to-accent/30"
             style={{
-              background: `linear-gradient(135deg, ${accentColor}18, transparent 60%)`,
+              background: `linear-gradient(135deg, ${accentColor}22, transparent 60%)`,
+              height: logoUrl && !isAdmin ? "5rem" : "6rem",
             }}
           >
             <div
-              className="h-1 w-full"
+              className="h-1.5 w-full"
               style={{
-                background: `linear-gradient(90deg, ${accentColor}, ${accentColor}99)`,
+                background: `linear-gradient(90deg, ${accentColor}, ${accentColor}88)`,
               }}
             />
+            {logoUrl && !isAdmin && (
+              <div className="flex items-center px-5 pt-3">
+                <img
+                  src={logoUrl}
+                  alt="לוגו"
+                  className="h-10 max-w-[180px] object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
+            )}
           </div>
-          <div className="-mt-12 px-5 pb-5">
+          <div className="-mt-10 px-5 pb-5">
             <h1 className="text-2xl font-bold text-foreground">{plan.name}</h1>
             {plan.subtitle && (
               <p className="mt-1 text-sm text-muted-foreground">{plan.subtitle}</p>
@@ -424,6 +435,7 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
           onOpenChange={setShowColors}
           planId={plan.id}
           accent={accentColor}
+          logoUrl={logoUrl}
           statusColors={planStatusColors}
         />
       )}
@@ -436,12 +448,14 @@ function PlanColorsDialog({
   onOpenChange,
   planId,
   accent,
+  logoUrl,
   statusColors,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   planId: string;
   accent: string;
+  logoUrl: string | null;
   statusColors: Record<string, string> | null;
 }) {
   const initialStatus = useMemo(() => {
@@ -453,21 +467,27 @@ function PlanColorsDialog({
   }, [statusColors]);
 
   const [accentLocal, setAccentLocal] = useState(accent);
+  const [logoLocal, setLogoLocal] = useState(logoUrl ?? "");
   const [statusLocal, setStatusLocal] = useState<Record<string, string>>(initialStatus);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setAccentLocal(accent);
+      setLogoLocal(logoUrl ?? "");
       setStatusLocal(initialStatus);
     }
-  }, [open, accent, initialStatus]);
+  }, [open, accent, logoUrl, initialStatus]);
 
   async function save() {
     setSaving(true);
     const { error } = await supabase
       .from("plans")
-      .update({ accent_color: accentLocal, status_colors: statusLocal })
+      .update({
+        accent_color: accentLocal,
+        status_colors: statusLocal,
+        logo_url: logoLocal.trim() || null,
+      })
       .eq("id", planId);
     setSaving(false);
     if (error) toast.error("שגיאה: " + error.message);
@@ -480,23 +500,46 @@ function PlanColorsDialog({
   function reset() {
     setStatusLocal({ ...DEFAULT_STATUS_COLORS });
     setAccentLocal("#2D4A6B");
+    setLogoLocal("");
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>צבעי התוכנית</DialogTitle>
+          <DialogTitle>מיתוג התוכנית</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
-            <div>
-              <div className="text-sm font-medium text-foreground">צבע הלקוח</div>
-              <div className="text-xs text-muted-foreground">
-                ההדגשה במסך התוכנית ובכרטיס הלקוח
+          <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-foreground">צבע הלקוח</div>
+                <div className="text-xs text-muted-foreground">ההדגשה במסך ובכרטיס הלקוח</div>
               </div>
+              <ColorPicker value={accentLocal} onChange={setAccentLocal} />
             </div>
-            <ColorPicker value={accentLocal} onChange={setAccentLocal} />
+            <div className="border-t border-border pt-2">
+              <div className="text-sm font-medium text-foreground mb-1">לוגו הלקוח</div>
+              <div className="text-xs text-muted-foreground mb-2">
+                קישור לתמונה (URL) — יופיע בראש מסך הלקוח
+              </div>
+              <input
+                type="url"
+                value={logoLocal}
+                onChange={(e) => setLogoLocal(e.target.value)}
+                placeholder="https://example.com/logo.png"
+                dir="ltr"
+                className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              {logoLocal && (
+                <img
+                  src={logoLocal}
+                  alt="תצוגה מקדימה"
+                  className="mt-2 h-8 max-w-[160px] object-contain opacity-80"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { isAdmin } from "@/lib/admin-session";
+import { supabase } from "@/integrations/supabase/client";
 import {
   listAdminUsers,
   createAdminUser,
@@ -85,7 +86,14 @@ function SettingsPage() {
       navigate({ to: "/login" });
       return;
     }
-    void loadUsers();
+    supabase.auth.getUser().then(({ data }) => {
+      const role = data.user?.user_metadata?.role as string | undefined;
+      if (role !== "admin") {
+        navigate({ to: "/" });
+        return;
+      }
+      void loadUsers();
+    });
   }, [navigate]);
 
   async function loadUsers() {
@@ -99,7 +107,7 @@ function SettingsPage() {
     }
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!newEmail.trim() || !newPassword.trim()) return;
     setCreating(true);

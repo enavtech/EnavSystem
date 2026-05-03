@@ -57,7 +57,7 @@
 
 - [x] **Health Score לכל פרויקט** ✓
 - [x] **Cross-plan dashboard** ✓
-- [ ] **Trend charts** — קצב סגירת משימות שבוע-על-שבוע לכל לקוח
+- [x] **Trend charts** ✓ — גרף עמודות שבועי (8 שבועות) של משימות שנוצרו/הושלמו בדשבורד
 - [ ] **Cohort analysis** — כמה זמן לוקח לסגור פרויקט מסוג X — benchmark פנימי
 
 ---
@@ -67,4 +67,4 @@
 - [ ] **Mentions בתגובות** — @שם → notification + היסטוריה
 - [ ] **Reactions** — 👍 ✅ על משימות ותגובות
 - [ ] **Video/Loom embed** — משימה תומכת בקישור להקלטת הסבר
-- [ ] **Client portal מותאם אישית** — לוגו חברת הלקוח + צבעי brand שלו
+- [x] **Client portal מותאם אישית** ✓ — לוגו + צבע accent per-plan; לוגו מוצג בראש מסך הלקוח
