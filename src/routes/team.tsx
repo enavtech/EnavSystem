@@ -56,6 +56,7 @@ type InternalTask = {
   assignee_id: string | null;
   created_at: string;
   completed_at: string | null;
+  sort_order: number;
 };
 type Member = { id: string; name: string; color: string | null; active: boolean };
 type PlanLite = {
