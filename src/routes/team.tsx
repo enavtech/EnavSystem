@@ -56,6 +56,7 @@ type InternalTask = {
   assignee_id: string | null;
   created_at: string;
   completed_at: string | null;
+  sort_order: number;
 };
 type Member = { id: string; name: string; color: string | null; active: boolean };
 type PlanLite = {
@@ -78,6 +79,21 @@ type KanbanStatus = {
 };
 
 const FALLBACK_STATUS_COLOR = "#94a3b8";
+
+function DropIndicator({ color }: { color: string }) {
+  return (
+    <div className="my-1 flex items-center gap-1.5" aria-hidden>
+      <span
+        className="h-2 w-2 shrink-0 rounded-full"
+        style={{ backgroundColor: color, boxShadow: `0 0 0 2px ${color}33` }}
+      />
+      <span
+        className="h-[3px] flex-1 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+    </div>
+  );
+}
 
 const PRIORITIES = [
   { id: "low", label: "נמוכה" },
@@ -105,6 +121,8 @@ function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // index within column where the dragged card would be inserted (null = no indicator)
+  const [dropIndex, setDropIndex] = useState<{ col: string; index: number } | null>(null);
 
   // Filters
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
@@ -239,16 +257,46 @@ function TeamPage() {
     await supabase.from("internal_tasks").update({ status }).eq("id", id);
   }
 
-  async function handleDrop(taskId: string, newStatus: string) {
+  async function handleDrop(taskId: string, newStatus: string, targetIndex: number | null) {
     const t = tasks.find((x) => x.id === taskId);
-    if (!t || t.status === newStatus) return;
+    if (!t) return;
+
+    // Compute the column items (sorted by sort_order) excluding the dragged task
+    const colItems = tasks
+      .filter((x) => x.status === newStatus && x.id !== taskId)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const idx =
+      targetIndex == null || targetIndex < 0 || targetIndex > colItems.length
+        ? colItems.length
+        : targetIndex;
+
+    const before = idx > 0 ? colItems[idx - 1].sort_order : null;
+    const after = idx < colItems.length ? colItems[idx].sort_order : null;
+    let newSort: number;
+    if (before == null && after == null) newSort = 1000;
+    else if (before == null) newSort = (after as number) - 1000;
+    else if (after == null) newSort = (before as number) + 1000;
+    else newSort = (before + after) / 2;
+
+    // No-op: same column AND same neighbors
+    if (t.status === newStatus && t.sort_order === newSort) return;
+
     // Optimistic update
     setTasks((prev) =>
-      prev.map((x) => (x.id === taskId ? { ...x, status: newStatus } : x))
+      prev.map((x) =>
+        x.id === taskId ? { ...x, status: newStatus, sort_order: newSort } : x
+      )
     );
-    const patch: { status: string; completed_at?: string | null } = { status: newStatus };
-    if (isDoneStatus(newStatus)) patch.completed_at = new Date().toISOString();
-    else if (isDoneStatus(t.status)) patch.completed_at = null;
+    const patch: {
+      status: string;
+      sort_order: number;
+      completed_at?: string | null;
+    } = { status: newStatus, sort_order: newSort };
+    if (newStatus !== t.status) {
+      if (isDoneStatus(newStatus)) patch.completed_at = new Date().toISOString();
+      else if (isDoneStatus(t.status)) patch.completed_at = null;
+    }
     const { error } = await supabase
       .from("internal_tasks")
       .update(patch)
@@ -437,7 +485,9 @@ function TeamPage() {
             }}
           >
             {statuses.map((s) => {
-              const items = filteredTasks.filter((t) => t.status === s.status_key);
+              const items = filteredTasks
+                .filter((t) => t.status === s.status_key)
+                .sort((a, b) => a.sort_order - b.sort_order);
               const col = s.color;
               const isOver = dragOverCol === s.status_key;
               return (
@@ -456,14 +506,22 @@ function TeamPage() {
                     }
                   }}
                   onDragLeave={(e) => {
-                    if (e.currentTarget === e.target) setDragOverCol(null);
+                    if (e.currentTarget === e.target) {
+                      setDragOverCol(null);
+                      setDropIndex(null);
+                    }
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
                     const id = e.dataTransfer.getData("text/plain") || draggingId;
+                    const idx =
+                      dropIndex && dropIndex.col === s.status_key
+                        ? dropIndex.index
+                        : null;
                     setDragOverCol(null);
                     setDraggingId(null);
-                    if (id) void handleDrop(id, s.status_key);
+                    setDropIndex(null);
+                    if (id) void handleDrop(id, s.status_key, idx);
                   }}
                 >
                   <div className="mb-3 flex items-center justify-between">
@@ -479,39 +537,87 @@ function TeamPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {items.map((t) => (
-                      <InternalTaskCard
-                        key={t.id}
-                        task={t}
-                        member={t.assignee_id ? memberMap.get(t.assignee_id) : undefined}
-                        plan={t.plan_id ? planMap.get(t.plan_id) : undefined}
-                        clientTask={
-                          t.client_task_id ? clientTaskMap.get(t.client_task_id) : undefined
-                        }
-                        planStatusColors={
-                          t.plan_id ? planMap.get(t.plan_id)?.status_colors ?? null : null
-                        }
-                        statuses={statuses}
-                        onEdit={() => setEditing(t)}
-                        onDelete={() => deleteTask(t.id)}
-                        onStatus={(st) => quickStatus(t.id, st)}
-                        draggable
-                        isDragging={draggingId === t.id}
-                        onDragStart={(e) => {
-                          setDraggingId(t.id);
-                          e.dataTransfer.setData("text/plain", t.id);
-                          e.dataTransfer.effectAllowed = "move";
-                        }}
-                        onDragEnd={() => {
-                          setDraggingId(null);
-                          setDragOverCol(null);
-                        }}
-                      />
-                    ))}
+                    {items.map((t, i) => {
+                      const showIndicatorBefore =
+                        draggingId &&
+                        dropIndex &&
+                        dropIndex.col === s.status_key &&
+                        dropIndex.index === i &&
+                        draggingId !== t.id;
+                      return (
+                        <div key={t.id}>
+                          {showIndicatorBefore && <DropIndicator color={col} />}
+                          <div
+                            onDragOver={(e) => {
+                              if (!draggingId) return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.dataTransfer.dropEffect = "move";
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const before = e.clientY < rect.top + rect.height / 2;
+                              const newIdx = before ? i : i + 1;
+                              if (dragOverCol !== s.status_key) setDragOverCol(s.status_key);
+                              if (
+                                !dropIndex ||
+                                dropIndex.col !== s.status_key ||
+                                dropIndex.index !== newIdx
+                              ) {
+                                setDropIndex({ col: s.status_key, index: newIdx });
+                              }
+                            }}
+                          >
+                            <InternalTaskCard
+                              task={t}
+                              member={t.assignee_id ? memberMap.get(t.assignee_id) : undefined}
+                              plan={t.plan_id ? planMap.get(t.plan_id) : undefined}
+                              clientTask={
+                                t.client_task_id
+                                  ? clientTaskMap.get(t.client_task_id)
+                                  : undefined
+                              }
+                              planStatusColors={
+                                t.plan_id
+                                  ? planMap.get(t.plan_id)?.status_colors ?? null
+                                  : null
+                              }
+                              statuses={statuses}
+                              onEdit={() => setEditing(t)}
+                              onDelete={() => deleteTask(t.id)}
+                              onStatus={(st) => quickStatus(t.id, st)}
+                              draggable
+                              isDragging={draggingId === t.id}
+                              onDragStart={(e) => {
+                                setDraggingId(t.id);
+                                e.dataTransfer.setData("text/plain", t.id);
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragEnd={() => {
+                                setDraggingId(null);
+                                setDragOverCol(null);
+                                setDropIndex(null);
+                              }}
+                            />
+                          </div>
+                          {i === items.length - 1 &&
+                            draggingId &&
+                            dropIndex &&
+                            dropIndex.col === s.status_key &&
+                            dropIndex.index === items.length &&
+                            draggingId !== t.id && <DropIndicator color={col} />}
+                        </div>
+                      );
+                    })}
                     {items.length === 0 && (
+                      <>
+                        {draggingId &&
+                          dropIndex &&
+                          dropIndex.col === s.status_key && (
+                            <DropIndicator color={col} />
+                          )}
                       <div className="rounded-lg border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
                         {isOver ? "שחרר כאן" : "ריק · גרור משימה"}
                       </div>
+                      </>
                     )}
                   </div>
                 </div>
