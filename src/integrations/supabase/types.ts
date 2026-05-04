@@ -112,6 +112,7 @@ export type Database = {
           plan_id: string | null
           position: number
           priority: string
+          sort_order: number
           status: string
           title: string
           updated_at: string
@@ -127,6 +128,7 @@ export type Database = {
           plan_id?: string | null
           position?: number
           priority?: string
+          sort_order?: number
           status?: string
           title: string
           updated_at?: string
@@ -142,6 +144,7 @@ export type Database = {
           plan_id?: string | null
           position?: number
           priority?: string
+          sort_order?: number
           status?: string
           title?: string
           updated_at?: string
