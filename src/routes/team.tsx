@@ -470,7 +470,9 @@ function TeamPage() {
             }}
           >
             {statuses.map((s) => {
-              const items = filteredTasks.filter((t) => t.status === s.status_key);
+              const items = filteredTasks
+                .filter((t) => t.status === s.status_key)
+                .sort((a, b) => a.sort_order - b.sort_order);
               const col = s.color;
               const isOver = dragOverCol === s.status_key;
               return (
@@ -489,14 +491,22 @@ function TeamPage() {
                     }
                   }}
                   onDragLeave={(e) => {
-                    if (e.currentTarget === e.target) setDragOverCol(null);
+                    if (e.currentTarget === e.target) {
+                      setDragOverCol(null);
+                      setDropIndex(null);
+                    }
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
                     const id = e.dataTransfer.getData("text/plain") || draggingId;
+                    const idx =
+                      dropIndex && dropIndex.col === s.status_key
+                        ? dropIndex.index
+                        : null;
                     setDragOverCol(null);
                     setDraggingId(null);
-                    if (id) void handleDrop(id, s.status_key);
+                    setDropIndex(null);
+                    if (id) void handleDrop(id, s.status_key, idx);
                   }}
                 >
                   <div className="mb-3 flex items-center justify-between">
@@ -512,39 +522,87 @@ function TeamPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {items.map((t) => (
-                      <InternalTaskCard
-                        key={t.id}
-                        task={t}
-                        member={t.assignee_id ? memberMap.get(t.assignee_id) : undefined}
-                        plan={t.plan_id ? planMap.get(t.plan_id) : undefined}
-                        clientTask={
-                          t.client_task_id ? clientTaskMap.get(t.client_task_id) : undefined
-                        }
-                        planStatusColors={
-                          t.plan_id ? planMap.get(t.plan_id)?.status_colors ?? null : null
-                        }
-                        statuses={statuses}
-                        onEdit={() => setEditing(t)}
-                        onDelete={() => deleteTask(t.id)}
-                        onStatus={(st) => quickStatus(t.id, st)}
-                        draggable
-                        isDragging={draggingId === t.id}
-                        onDragStart={(e) => {
-                          setDraggingId(t.id);
-                          e.dataTransfer.setData("text/plain", t.id);
-                          e.dataTransfer.effectAllowed = "move";
-                        }}
-                        onDragEnd={() => {
-                          setDraggingId(null);
-                          setDragOverCol(null);
-                        }}
-                      />
-                    ))}
+                    {items.map((t, i) => {
+                      const showIndicatorBefore =
+                        draggingId &&
+                        dropIndex &&
+                        dropIndex.col === s.status_key &&
+                        dropIndex.index === i &&
+                        draggingId !== t.id;
+                      return (
+                        <div key={t.id}>
+                          {showIndicatorBefore && <DropIndicator color={col} />}
+                          <div
+                            onDragOver={(e) => {
+                              if (!draggingId) return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.dataTransfer.dropEffect = "move";
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const before = e.clientY < rect.top + rect.height / 2;
+                              const newIdx = before ? i : i + 1;
+                              if (dragOverCol !== s.status_key) setDragOverCol(s.status_key);
+                              if (
+                                !dropIndex ||
+                                dropIndex.col !== s.status_key ||
+                                dropIndex.index !== newIdx
+                              ) {
+                                setDropIndex({ col: s.status_key, index: newIdx });
+                              }
+                            }}
+                          >
+                            <InternalTaskCard
+                              task={t}
+                              member={t.assignee_id ? memberMap.get(t.assignee_id) : undefined}
+                              plan={t.plan_id ? planMap.get(t.plan_id) : undefined}
+                              clientTask={
+                                t.client_task_id
+                                  ? clientTaskMap.get(t.client_task_id)
+                                  : undefined
+                              }
+                              planStatusColors={
+                                t.plan_id
+                                  ? planMap.get(t.plan_id)?.status_colors ?? null
+                                  : null
+                              }
+                              statuses={statuses}
+                              onEdit={() => setEditing(t)}
+                              onDelete={() => deleteTask(t.id)}
+                              onStatus={(st) => quickStatus(t.id, st)}
+                              draggable
+                              isDragging={draggingId === t.id}
+                              onDragStart={(e) => {
+                                setDraggingId(t.id);
+                                e.dataTransfer.setData("text/plain", t.id);
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragEnd={() => {
+                                setDraggingId(null);
+                                setDragOverCol(null);
+                                setDropIndex(null);
+                              }}
+                            />
+                          </div>
+                          {i === items.length - 1 &&
+                            draggingId &&
+                            dropIndex &&
+                            dropIndex.col === s.status_key &&
+                            dropIndex.index === items.length &&
+                            draggingId !== t.id && <DropIndicator color={col} />}
+                        </div>
+                      );
+                    })}
                     {items.length === 0 && (
+                      <>
+                        {draggingId &&
+                          dropIndex &&
+                          dropIndex.col === s.status_key && (
+                            <DropIndicator color={col} />
+                          )}
                       <div className="rounded-lg border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
                         {isOver ? "שחרר כאן" : "ריק · גרור משימה"}
                       </div>
+                      </>
                     )}
                   </div>
                 </div>
