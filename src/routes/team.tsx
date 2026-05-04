@@ -80,6 +80,21 @@ type KanbanStatus = {
 
 const FALLBACK_STATUS_COLOR = "#94a3b8";
 
+function DropIndicator({ color }: { color: string }) {
+  return (
+    <div className="my-1 flex items-center gap-1.5" aria-hidden>
+      <span
+        className="h-2 w-2 shrink-0 rounded-full"
+        style={{ backgroundColor: color, boxShadow: `0 0 0 2px ${color}33` }}
+      />
+      <span
+        className="h-[3px] flex-1 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+    </div>
+  );
+}
+
 const PRIORITIES = [
   { id: "low", label: "נמוכה" },
   { id: "medium", label: "בינונית" },
