@@ -242,16 +242,46 @@ function TeamPage() {
     await supabase.from("internal_tasks").update({ status }).eq("id", id);
   }
 
-  async function handleDrop(taskId: string, newStatus: string) {
+  async function handleDrop(taskId: string, newStatus: string, targetIndex: number | null) {
     const t = tasks.find((x) => x.id === taskId);
-    if (!t || t.status === newStatus) return;
+    if (!t) return;
+
+    // Compute the column items (sorted by sort_order) excluding the dragged task
+    const colItems = tasks
+      .filter((x) => x.status === newStatus && x.id !== taskId)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const idx =
+      targetIndex == null || targetIndex < 0 || targetIndex > colItems.length
+        ? colItems.length
+        : targetIndex;
+
+    const before = idx > 0 ? colItems[idx - 1].sort_order : null;
+    const after = idx < colItems.length ? colItems[idx].sort_order : null;
+    let newSort: number;
+    if (before == null && after == null) newSort = 1000;
+    else if (before == null) newSort = (after as number) - 1000;
+    else if (after == null) newSort = (before as number) + 1000;
+    else newSort = (before + after) / 2;
+
+    // No-op: same column AND same neighbors
+    if (t.status === newStatus && t.sort_order === newSort) return;
+
     // Optimistic update
     setTasks((prev) =>
-      prev.map((x) => (x.id === taskId ? { ...x, status: newStatus } : x))
+      prev.map((x) =>
+        x.id === taskId ? { ...x, status: newStatus, sort_order: newSort } : x
+      )
     );
-    const patch: { status: string; completed_at?: string | null } = { status: newStatus };
-    if (isDoneStatus(newStatus)) patch.completed_at = new Date().toISOString();
-    else if (isDoneStatus(t.status)) patch.completed_at = null;
+    const patch: {
+      status: string;
+      sort_order: number;
+      completed_at?: string | null;
+    } = { status: newStatus, sort_order: newSort };
+    if (newStatus !== t.status) {
+      if (isDoneStatus(newStatus)) patch.completed_at = new Date().toISOString();
+      else if (isDoneStatus(t.status)) patch.completed_at = null;
+    }
     const { error } = await supabase
       .from("internal_tasks")
       .update(patch)
