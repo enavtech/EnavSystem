@@ -106,6 +106,8 @@ function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // index within column where the dragged card would be inserted (null = no indicator)
+  const [dropIndex, setDropIndex] = useState<{ col: string; index: number } | null>(null);
 
   // Filters
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
