@@ -1,22 +1,10 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap");
+
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
-
-/*
- * Design system definition.
- *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
- *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
- */
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -68,98 +56,288 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.97 0.012 240);
-  --foreground: oklch(0.22 0.04 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.04 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.04 250);
-  --primary: oklch(0.38 0.07 245);
-  --primary-foreground: oklch(0.99 0.005 240);
-  --secondary: oklch(0.94 0.018 240);
-  --secondary-foreground: oklch(0.32 0.06 245);
-  --muted: oklch(0.94 0.018 240);
-  --muted-foreground: oklch(0.5 0.03 250);
-  --accent: oklch(0.92 0.04 230);
-  --accent-foreground: oklch(0.3 0.07 245);
-  --destructive: oklch(0.55 0.2 25);
-  --destructive-foreground: oklch(0.99 0.005 240);
-  --border: oklch(0.88 0.025 240);
-  --input: oklch(0.92 0.02 240);
-  --ring: oklch(0.55 0.1 245);
-  --success: oklch(0.55 0.13 160);
-  --success-foreground: oklch(0.99 0.005 240);
-  --warning: oklch(0.7 0.16 70);
-  --warning-foreground: oklch(0.2 0.04 60);
-  --urgent: oklch(0.58 0.21 25);
-  --urgent-foreground: oklch(0.99 0.005 240);
-  --gradient-hero: linear-gradient(135deg, oklch(0.38 0.07 245) 0%, oklch(0.5 0.13 220) 100%);
-  --gradient-card: linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.98 0.01 240) 100%);
-  --shadow-soft: 0 1px 3px oklch(0.22 0.04 250 / 0.06), 0 1px 2px oklch(0.22 0.04 250 / 0.04);
-  --shadow-elevated: 0 10px 30px -10px oklch(0.22 0.04 250 / 0.18);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+  --radius: 1rem;
+
+  /*
+   * Fynix-inspired light design system.
+   * Background: cool light gray  #ECEEF3
+   * Cards: pure white             #FFFFFF
+   * Primary: electric blue        (Fynix uses lime-green, we keep brand blue)
+   * Hero/dark elements: deep navy (Fynix uses dark forest-green)
+   * Clean, organized, premium SaaS — no glassmorphism needed.
+   */
+
+  --background:         oklch(0.944 0.010 258);
+  --foreground:         oklch(0.14  0.042 258);
+
+  --card:               oklch(1 0 0);
+  --card-foreground:    oklch(0.14  0.042 258);
+
+  --popover:            oklch(1 0 0);
+  --popover-foreground: oklch(0.14  0.042 258);
+
+  /* Electric blue — Fynix's role: lime green */
+  --primary:            oklch(0.60 0.20 250);
+  --primary-foreground: oklch(0.99 0    0);
+
+  --secondary:          oklch(0.93 0.012 258);
+  --secondary-foreground: oklch(0.26 0.050 258);
+
+  --muted:              oklch(0.92 0.010 258);
+  --muted-foreground:   oklch(0.50 0.026 258);
+
+  --accent:             oklch(0.90 0.022 248);
+  --accent-foreground:  oklch(0.32 0.12  248);
+
+  --destructive:        oklch(0.60 0.22 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  /* Borders: very subtle dark lines, not white */
+  --border:             oklch(0 0 0 / 0.07);
+  --input:              oklch(0.97 0.006 258);
+  --ring:               oklch(0.60 0.20 250);
+
+  --success:            oklch(0.62 0.17 149);
+  --success-foreground: oklch(0.99 0    0);
+  --warning:            oklch(0.68 0.17 78);
+  --warning-foreground: oklch(0.28 0.07 68);
+  --urgent:             oklch(0.60 0.22 25);
+  --urgent-foreground:  oklch(0.99 0    0);
+
+  /* Charts */
+  --chart-1: oklch(0.60 0.20 250);
+  --chart-2: oklch(0.62 0.17 149);
+  --chart-3: oklch(0.68 0.17 78);
+  --chart-4: oklch(0.54 0.20 285);
+  --chart-5: oklch(0.60 0.22 25);
+
+  /* Sidebar */
+  --sidebar:            oklch(1 0 0);
+  --sidebar-foreground: oklch(0.14 0.042 258);
+  --sidebar-primary:    oklch(0.60 0.20 250);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent:     oklch(0.93 0.012 258);
+  --sidebar-accent-foreground: oklch(0.26 0.050 258);
+  --sidebar-border:     oklch(0 0 0 / 0.06);
+  --sidebar-ring:       oklch(0.60 0.20 250);
+
+  /* Card elevation shadows */
+  --shadow-card:     0 2px 12px oklch(0 0 0 / 0.06), 0 1px 3px oklch(0 0 0 / 0.04);
+  --shadow-elevated: 0 8px 32px oklch(0 0 0 / 0.10), 0 2px 8px  oklch(0 0 0 / 0.06);
+  --shadow-deep:     0 16px 48px oklch(0 0 0 / 0.14), 0 4px 16px oklch(0 0 0 / 0.08);
+
+  /* Dark hero (like Fynix's dark-green "Total Balance" card) */
+  --hero-bg:   oklch(0.17 0.052 258);
+  --hero-text: oklch(0.97 0.005 248);
+
+  /* Glow (light mode — softer) */
+  --glow-primary: oklch(0.50 0.20 248 / 0.20);
+  --glow-success: oklch(0.62 0.17 149 / 0.18);
+  --glow-urgent:  oklch(0.60 0.22 25  / 0.20);
 }
 
-.dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+/* ── Animations ────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-5px); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @layer base {
-  * {
-    border-color: var(--color-border);
-  }
+  * { border-color: var(--color-border); }
+  html { direction: rtl; }
 
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Heebo", "Assistant", Arial, sans-serif;
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Arial, sans-serif;
+    min-height: 100dvh;
+    /* Fynix-style: flat cool-gray. No gradients — the cards provide the depth. */
   }
 
-  html {
-    direction: rtl;
+  /* Card primitive: white with elevation */
+  .bg-card { background: var(--card); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: oklch(0 0 0 / 0.12); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: oklch(0 0 0 / 0.20); }
+
+  ::selection {
+    background: oklch(0.50 0.20 248 / 0.15);
+    color: oklch(0.14 0.042 258);
+  }
+  ::placeholder { color: oklch(0.50 0.026 258 / 0.55); }
+
+  h1, h2, h3 {
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer utilities {
+  /* ─── Card elevation system ──────────────────────────────────
+   * Mirrors Fynix: white cards with crisp shadows on gray bg.
+   * "glass" utilities are repurposed as elevation levels.
+   * ───────────────────────────────────────────────────────── */
+
+  /* Level 1 — subtle chips, nav items, tags */
+  .glass {
+    background: oklch(1 0 0);
+    border: 1px solid oklch(0 0 0 / 0.06);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Level 2 — cards, panels */
+  .glass-strong {
+    background: oklch(1 0 0);
+    border: 1px solid oklch(0 0 0 / 0.06);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Level 3 — modals, elevated dialogs */
+  .glass-elevated {
+    background: oklch(1 0 0);
+    border: 1px solid oklch(0 0 0 / 0.08);
+    box-shadow: var(--shadow-elevated);
+  }
+
+  /* Muted surface (icon backgrounds, inner chips) */
+  .glass-subtle {
+    background: oklch(0.93 0.010 258);
+    border: 1px solid oklch(0 0 0 / 0.05);
+  }
+
+  /* ─── Hero card (dark, like Fynix "Total Balance") ──────── */
+  .card-hero {
+    background: var(--hero-bg);
+    color: var(--hero-text);
+    border: none;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  /* ─── Glow (soft, light-mode appropriate) ───────────────── */
+  .glow      { box-shadow: 0 0 16px var(--glow-primary), var(--shadow-card); }
+  .glow-sm   { box-shadow: 0 0  8px var(--glow-primary); }
+  .glow-success { box-shadow: 0 0 10px var(--glow-success); }
+  .glow-urgent  { box-shadow: 0 0 10px var(--glow-urgent);  }
+
+  /* ─── Gradient text ─────────────────────────────────────── */
+  .gradient-text {
+    background: linear-gradient(135deg, oklch(0.60 0.20 250), oklch(0.62 0.22 272));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .gradient-text-gold {
+    background: linear-gradient(135deg, oklch(0.62 0.18 68), oklch(0.68 0.16 55));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* ─── Top accent line ────────────────────────────────────── */
+  .glass-top { position: relative; }
+  .glass-top::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      oklch(0.50 0.20 248 / 0.55) 30%,
+      oklch(0.52 0.22 272 / 0.55) 70%,
+      transparent 100%
+    );
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  /* ─── Shimmer border (login card accent) ───────────────── */
+  .shimmer-border { position: relative; }
+  .shimmer-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(
+      90deg,
+      oklch(0.50 0.20 248 / 0.00)  0%,
+      oklch(0.50 0.20 248 / 0.55) 40%,
+      oklch(0.52 0.22 272 / 0.55) 60%,
+      oklch(0.50 0.20 248 / 0.00) 100%
+    );
+    background-size: 200% auto;
+    animation: shimmer 3s linear infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* ─── Floating/animation ────────────────────────────────── */
+  .animate-float      { animation: float 6s ease-in-out infinite; }
+  .animate-fade-up    { animation: fade-up 0.4s ease both; }
+
+  /* Orb still available for login page decoration */
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+  }
+
+  /* ─── Gradient button ───────────────────────────────────── */
+  .btn-gradient {
+    background: linear-gradient(135deg, oklch(0.60 0.20 250), oklch(0.62 0.22 268));
+    color: white;
+    box-shadow: 0 4px 14px oklch(0.50 0.20 248 / 0.30);
+    transition: all 0.18s ease;
+  }
+  .btn-gradient:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 6px 20px oklch(0.50 0.20 248 / 0.40);
+    transform: translateY(-1px);
+  }
+  .btn-gradient:active { transform: translateY(0); filter: brightness(0.96); }
+
+  /* ─── Progress gradient (Fynix-style fill) ──────────────── */
+  .progress-gradient {
+    background: linear-gradient(90deg, oklch(0.60 0.20 250), oklch(0.62 0.22 268));
+  }
+
+  /* ─── Status badges ─────────────────────────────────────── */
+  .badge-success {
+    background: oklch(0.62 0.17 149 / 0.10);
+    border: 1px solid oklch(0.62 0.17 149 / 0.25);
+    color: oklch(0.42 0.14 149);
+  }
+  .badge-warning {
+    background: oklch(0.68 0.17 78 / 0.10);
+    border: 1px solid oklch(0.68 0.17 78 / 0.25);
+    color: oklch(0.40 0.14 68);
+  }
+  .badge-urgent {
+    background: oklch(0.60 0.22 25 / 0.09);
+    border: 1px solid oklch(0.60 0.22 25 / 0.24);
+    color: oklch(0.48 0.20 25);
+  }
+  .badge-primary {
+    background: oklch(0.50 0.20 248 / 0.09);
+    border: 1px solid oklch(0.50 0.20 248 / 0.24);
+    color: oklch(0.44 0.17 250);
   }
 }

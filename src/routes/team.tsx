@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { AppShell } from "@/components/AppShell";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,6 @@ import {
 import {
   Plus,
   Loader2,
-  ArrowLeft,
   Trash2,
   Users,
   ListChecks,
@@ -353,9 +353,11 @@ function TeamPage() {
 
   if (!authed || loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
-      </div>
+      <AppShell>
+        <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      </AppShell>
     );
   }
 
@@ -378,23 +380,16 @@ function TeamPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppShell>
       <Toaster position="top-center" dir="rtl" />
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="min-h-screen px-5 py-6" style={{ direction: "rtl" }}>
         <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <Link
-              to="/"
-              className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-3 w-3 rtl:rotate-180" />
-              חזרה לדשבורד
-            </Link>
             <div className="inline-flex items-center gap-2 rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
               <Users className="h-3 w-3" />
               ניהול צוות פנימי · רק לעיני הסוכנות
             </div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            <h1 className="mt-3 text-2xl font-bold text-foreground">
               משימות הצוות שלי
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -402,13 +397,6 @@ function TeamPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              to="/goals"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-            >
-              <Target className="h-3.5 w-3.5" />
-              יעדי צוות
-            </Link>
             <Button variant="outline" size="sm" onClick={() => setShowStatuses(true)}>
               <Settings2 className="ms-2 h-4 w-4" /> שלבים ({statuses.length})
             </Button>
@@ -479,9 +467,9 @@ function TeamPage() {
         {/* Views */}
         {tab === "kanban" && (
           <div
-            className="grid gap-3"
+            className="grid gap-2"
             style={{
-              gridTemplateColumns: `repeat(${Math.max(statuses.length, 1)}, minmax(220px, 1fr))`,
+              gridTemplateColumns: `repeat(${Math.max(statuses.length, 1)}, minmax(150px, 1fr))`,
             }}
           >
             {statuses.map((s) => {
@@ -494,7 +482,7 @@ function TeamPage() {
                 <div
                   key={s.id}
                   className={cn(
-                    "overflow-hidden rounded-xl border bg-muted/30 p-3 transition-colors",
+                    "overflow-hidden rounded-xl border bg-muted/30 p-2.5 transition-colors",
                     isOver ? "border-primary bg-primary/5 ring-2 ring-primary/30" : "border-border"
                   )}
                   style={{ borderTop: `3px solid ${col}` }}
@@ -1066,7 +1054,7 @@ function TeamPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </AppShell>
   );
 }
 

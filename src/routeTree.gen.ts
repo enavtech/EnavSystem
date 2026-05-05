@@ -11,10 +11,16 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TeamRouteImport } from './routes/team'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PlansRouteImport } from './routes/plans'
+import { Route as MeetingsRouteImport } from './routes/meetings'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as GoalsRouteImport } from './routes/goals'
+import { Route as CrmRouteImport } from './routes/crm'
+import { Route as ContentRouteImport } from './routes/content'
+import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
+import { Route as ClientsIdRouteImport } from './routes/clients.$id'
 import { Route as CTokenRouteImport } from './routes/c.$token'
 import { Route as PSlugDashboardRouteImport } from './routes/p.$slug.dashboard'
 
@@ -28,6 +34,16 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlansRoute = PlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MeetingsRoute = MeetingsRouteImport.update({
+  id: '/meetings',
+  path: '/meetings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -36,6 +52,21 @@ const LoginRoute = LoginRouteImport.update({
 const GoalsRoute = GoalsRouteImport.update({
   id: '/goals',
   path: '/goals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CrmRoute = CrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContentRoute = ContentRouteImport.update({
+  id: '/content',
+  path: '/content',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsRoute = ClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +78,11 @@ const PSlugRoute = PSlugRouteImport.update({
   id: '/p/$slug',
   path: '/p/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsIdRoute = ClientsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ClientsRoute,
 } as any)
 const CTokenRoute = CTokenRouteImport.update({
   id: '/c/$token',
@@ -61,32 +97,50 @@ const PSlugDashboardRoute = PSlugDashboardRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/clients': typeof ClientsRouteWithChildren
+  '/content': typeof ContentRoute
+  '/crm': typeof CrmRoute
   '/goals': typeof GoalsRoute
   '/login': typeof LoginRoute
+  '/meetings': typeof MeetingsRoute
+  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
   '/c/$token': typeof CTokenRoute
+  '/clients/$id': typeof ClientsIdRoute
   '/p/$slug': typeof PSlugRouteWithChildren
   '/p/$slug/dashboard': typeof PSlugDashboardRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/clients': typeof ClientsRouteWithChildren
+  '/content': typeof ContentRoute
+  '/crm': typeof CrmRoute
   '/goals': typeof GoalsRoute
   '/login': typeof LoginRoute
+  '/meetings': typeof MeetingsRoute
+  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
   '/c/$token': typeof CTokenRoute
+  '/clients/$id': typeof ClientsIdRoute
   '/p/$slug': typeof PSlugRouteWithChildren
   '/p/$slug/dashboard': typeof PSlugDashboardRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/clients': typeof ClientsRouteWithChildren
+  '/content': typeof ContentRoute
+  '/crm': typeof CrmRoute
   '/goals': typeof GoalsRoute
   '/login': typeof LoginRoute
+  '/meetings': typeof MeetingsRoute
+  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
   '/c/$token': typeof CTokenRoute
+  '/clients/$id': typeof ClientsIdRoute
   '/p/$slug': typeof PSlugRouteWithChildren
   '/p/$slug/dashboard': typeof PSlugDashboardRoute
 }
@@ -94,39 +148,62 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/clients'
+    | '/content'
+    | '/crm'
     | '/goals'
     | '/login'
+    | '/meetings'
+    | '/plans'
     | '/settings'
     | '/team'
     | '/c/$token'
+    | '/clients/$id'
     | '/p/$slug'
     | '/p/$slug/dashboard'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/clients'
+    | '/content'
+    | '/crm'
     | '/goals'
     | '/login'
+    | '/meetings'
+    | '/plans'
     | '/settings'
     | '/team'
     | '/c/$token'
+    | '/clients/$id'
     | '/p/$slug'
     | '/p/$slug/dashboard'
   id:
     | '__root__'
     | '/'
+    | '/clients'
+    | '/content'
+    | '/crm'
     | '/goals'
     | '/login'
+    | '/meetings'
+    | '/plans'
     | '/settings'
     | '/team'
     | '/c/$token'
+    | '/clients/$id'
     | '/p/$slug'
     | '/p/$slug/dashboard'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ClientsRoute: typeof ClientsRouteWithChildren
+  ContentRoute: typeof ContentRoute
+  CrmRoute: typeof CrmRoute
   GoalsRoute: typeof GoalsRoute
   LoginRoute: typeof LoginRoute
+  MeetingsRoute: typeof MeetingsRoute
+  PlansRoute: typeof PlansRoute
   SettingsRoute: typeof SettingsRoute
   TeamRoute: typeof TeamRoute
   CTokenRoute: typeof CTokenRoute
@@ -149,6 +226,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plans': {
+      id: '/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/meetings': {
+      id: '/meetings'
+      path: '/meetings'
+      fullPath: '/meetings'
+      preLoaderRoute: typeof MeetingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -161,6 +252,27 @@ declare module '@tanstack/react-router' {
       path: '/goals'
       fullPath: '/goals'
       preLoaderRoute: typeof GoalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crm': {
+      id: '/crm'
+      path: '/crm'
+      fullPath: '/crm'
+      preLoaderRoute: typeof CrmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/content': {
+      id: '/content'
+      path: '/content'
+      fullPath: '/content'
+      preLoaderRoute: typeof ContentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients': {
+      id: '/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof ClientsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -176,6 +288,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/p/$slug'
       preLoaderRoute: typeof PSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/clients/$id': {
+      id: '/clients/$id'
+      path: '/$id'
+      fullPath: '/clients/$id'
+      preLoaderRoute: typeof ClientsIdRouteImport
+      parentRoute: typeof ClientsRoute
     }
     '/c/$token': {
       id: '/c/$token'
@@ -194,6 +313,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ClientsRouteChildren {
+  ClientsIdRoute: typeof ClientsIdRoute
+}
+
+const ClientsRouteChildren: ClientsRouteChildren = {
+  ClientsIdRoute: ClientsIdRoute,
+}
+
+const ClientsRouteWithChildren =
+  ClientsRoute._addFileChildren(ClientsRouteChildren)
+
 interface PSlugRouteChildren {
   PSlugDashboardRoute: typeof PSlugDashboardRoute
 }
@@ -206,8 +336,13 @@ const PSlugRouteWithChildren = PSlugRoute._addFileChildren(PSlugRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ClientsRoute: ClientsRouteWithChildren,
+  ContentRoute: ContentRoute,
+  CrmRoute: CrmRoute,
   GoalsRoute: GoalsRoute,
   LoginRoute: LoginRoute,
+  MeetingsRoute: MeetingsRoute,
+  PlansRoute: PlansRoute,
   SettingsRoute: SettingsRoute,
   TeamRoute: TeamRoute,
   CTokenRoute: CTokenRoute,

@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { AppShell } from "@/components/AppShell";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,6 @@ import {
   Check,
   Trash2,
   Pencil,
-  ArrowLeft,
   Calendar,
   Users,
 } from "lucide-react";
@@ -394,9 +394,11 @@ function GoalsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
+      <AppShell>
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
     );
   }
 
@@ -410,62 +412,34 @@ function GoalsPage() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppShell>
       <Toaster position="top-center" dir="rtl" />
-      <div className="mx-auto max-w-7xl px-4 py-6">
+      <div className="min-h-screen px-7 py-6" style={{ direction: "rtl" }}>
 
-        {/* Top bar */}
+        {/* Header */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            חזרה לדשבורד
-          </Link>
+          <div>
+            <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+              תכנון אסטרטגי
+            </div>
+            <h1 className="mt-1 text-2xl font-bold text-foreground">יעדי הצוות</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              שבוע {periods.week.label} · {periods.month.label} · {periods.quarter.label}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
-            <Link
-              to="/team"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-            >
-              <Users className="h-3.5 w-3.5" />
-              משימות הצוות
-            </Link>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRefDate((d) => addDays(d, -7))}
-            >
+            <Button variant="outline" size="sm" onClick={() => setRefDate((d) => addDays(d, -7))}>
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRefDate(new Date())}
-            >
+            <Button variant="outline" size="sm" onClick={() => setRefDate(new Date())}>
               <Calendar className="me-1 h-3.5 w-3.5" />
               היום
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRefDate((d) => addDays(d, 7))}
-            >
+            <Button variant="outline" size="sm" onClick={() => setRefDate((d) => addDays(d, 7))}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </div>
         </div>
-
-        {/* Header */}
-        <header className="mb-6">
-          <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-            תכנון אסטרטגי
-          </div>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">יעדי הצוות</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            שבוע {periods.week.label} · {periods.month.label} · {periods.quarter.label}
-          </p>
-        </header>
 
         {/* 3-column goals grid */}
         <div className="mb-10 grid gap-5 lg:grid-cols-3">
@@ -795,7 +769,7 @@ function GoalsPage() {
           </DialogContent>
         </Dialog>
       )}
-    </div>
+    </AppShell>
   );
 }
 

@@ -1,0 +1,15 @@
+ALTER TABLE contacts
+  ADD COLUMN IF NOT EXISTS service_type         text,
+  ADD COLUMN IF NOT EXISTS id_number            text,
+  ADD COLUMN IF NOT EXISTS website              text,
+  ADD COLUMN IF NOT EXISTS employees_count      integer,
+  ADD COLUMN IF NOT EXISTS contract_signed_date date,
+  ADD COLUMN IF NOT EXISTS contract_end_date    date,
+  ADD COLUMN IF NOT EXISTS monthly_fee          text,
+  ADD COLUMN IF NOT EXISTS monthly_ad_budget    text,
+  ADD COLUMN IF NOT EXISTS business_type        text,
+  ADD COLUMN IF NOT EXISTS tax_id               text,
+  ADD COLUMN IF NOT EXISTS city                 text,
+  ADD COLUMN IF NOT EXISTS instagram_handle     text,
+  ADD COLUMN IF NOT EXISTS facebook_url         text,
+  ADD COLUMN IF NOT EXISTS tiktok_handle        text;

@@ -66,6 +66,10 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
   const [authorInput, setAuthorInput] = useState("");
   const [showColors, setShowColors] = useState(false);
 
+  // Drag-and-drop state (reorder within same status group)
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ taskId: string; side: "before" | "after" } | null>(null);
+
   // Local working copy of status colors (only used while admin edits in the dialog).
   const planStatusColors =
     (plan.status_colors as Record<string, string> | null | undefined) ?? null;
@@ -99,6 +103,59 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
       return (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9);
     });
   }, [tasks, filter, sort]);
+
+  // Tasks grouped by status, sorted by position (drag order) then secondary sort
+  const groupedByStatus = useMemo(() => {
+    return STATUSES.map((status) => {
+      const statusTasks = filteredTasks
+        .filter((t) => t.status === status)
+        .sort((a, b) => {
+          const pa = a.position ?? 9999;
+          const pb = b.position ?? 9999;
+          if (pa !== pb) return pa - pb;
+          if (sort === "deadline")
+            return (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999");
+          return (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9);
+        });
+      return { status, tasks: statusTasks };
+    }).filter((g) => g.tasks.length > 0);
+  }, [filteredTasks, sort]);
+
+  async function handleDrop(targetTaskId: string, targetStatus: string) {
+    if (!dragId || dragId === targetTaskId) {
+      setDragId(null);
+      setDropTarget(null);
+      return;
+    }
+    const source = tasks.find((t) => t.id === dragId);
+    if (!source || source.status !== targetStatus) {
+      setDragId(null);
+      setDropTarget(null);
+      return;
+    }
+    const statusTasks = tasks
+      .filter((t) => t.status === targetStatus)
+      .sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999));
+
+    const without = statusTasks.filter((t) => t.id !== dragId);
+    const targetIdx = without.findIndex((t) => t.id === targetTaskId);
+    if (targetIdx === -1) { setDragId(null); setDropTarget(null); return; }
+
+    const insertIdx = dropTarget?.side === "after" ? targetIdx + 1 : targetIdx;
+    const reordered = [
+      ...without.slice(0, insertIdx),
+      source,
+      ...without.slice(insertIdx),
+    ];
+
+    setDragId(null);
+    setDropTarget(null);
+
+    // Batch-update positions
+    for (let i = 0; i < reordered.length; i++) {
+      await supabase.from("tasks").update({ position: i }).eq("id", reordered[i].id);
+    }
+  }
 
   const stats = useMemo(() => {
     const total = tasks.length;
@@ -330,19 +387,83 @@ export function PlanView({ plan, tasks, steps, comments, isAdmin, shareUrl }: Pr
           </div>
         </div>
 
-        {/* Task list */}
-        <div className="space-y-2">
-          {filteredTasks.map((t) => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              steps={steps[t.id] ?? []}
-              comments={comments[t.id] ?? []}
-              isAdminView={isAdmin}
-              planId={plan.id}
-              statusColors={planStatusColors}
-            />
-          ))}
+        {/* Task list — grouped by status, draggable within group */}
+        <div className="space-y-5">
+          {groupedByStatus.map(({ status, tasks: statusTasks }) => {
+            const statusColor = getStatusColor(status, planStatusColors);
+            return (
+              <div key={status}>
+                {/* Status group header */}
+                <div className="mb-2 flex items-center gap-2 px-1">
+                  <span
+                    className="h-2 w-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: statusColor }}
+                  />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {status}
+                  </span>
+                  <span className="text-xs text-muted-foreground/60">
+                    ({statusTasks.length})
+                  </span>
+                </div>
+
+                <div className="space-y-0">
+                  {statusTasks.map((t) => {
+                    const isDragging = dragId === t.id;
+                    const isDropBefore = dropTarget?.taskId === t.id && dropTarget.side === "before";
+                    const isDropAfter  = dropTarget?.taskId === t.id && dropTarget.side === "after";
+                    return (
+                      <div key={t.id}>
+                        {/* Drop line — before */}
+                        {isDropBefore && (
+                          <div className="relative my-0.5 flex items-center gap-1 px-1">
+                            <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                            <div className="h-0.5 flex-1 rounded-full bg-primary" />
+                          </div>
+                        )}
+
+                        <div
+                          draggable
+                          onDragStart={() => setDragId(t.id)}
+                          onDragEnd={() => { setDragId(null); setDropTarget(null); }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const side = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                            if (dropTarget?.taskId !== t.id || dropTarget.side !== side)
+                              setDropTarget({ taskId: t.id, side });
+                          }}
+                          onDrop={() => void handleDrop(t.id, status)}
+                          className={cn(
+                            "mb-2 cursor-grab transition-opacity active:cursor-grabbing",
+                            isDragging && "opacity-40"
+                          )}
+                        >
+                          <TaskCard
+                            task={t}
+                            steps={steps[t.id] ?? []}
+                            comments={comments[t.id] ?? []}
+                            isAdminView={isAdmin}
+                            planId={plan.id}
+                            statusColors={planStatusColors}
+                          />
+                        </div>
+
+                        {/* Drop line — after */}
+                        {isDropAfter && (
+                          <div className="relative my-0.5 flex items-center gap-1 px-1">
+                            <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                            <div className="h-0.5 flex-1 rounded-full bg-primary" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
           {filteredTasks.length === 0 && (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
               אין משימות בתצוגה זו

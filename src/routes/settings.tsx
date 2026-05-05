@@ -1,4 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { AppShell } from "@/components/AppShell";
 import { useEffect, useState } from "react";
 import { isAdmin } from "@/lib/admin-session";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +30,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowLeft,
   Loader2,
   Plus,
   Trash2,
@@ -159,27 +159,19 @@ function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
+      <AppShell>
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppShell>
       <Toaster position="top-center" dir="rtl" />
-      <div className="mx-auto max-w-3xl px-4 py-8">
-
-        {/* Top bar */}
-        <div className="mb-6 flex items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            חזרה לדשבורד
-          </Link>
-        </div>
+      <div className="min-h-screen px-7 py-6" style={{ direction: "rtl" }}>
+        <div className="mx-auto max-w-3xl">
 
         {/* Header */}
         <header className="mb-8">
@@ -293,7 +285,7 @@ function SettingsPage() {
           <p className="font-medium text-foreground mb-1">אבטחה</p>
           <p>כל מנהל מקבל גישה מאובטחת דרך Supabase Auth. הסיסמאות מוצפנות ואינן נשמרות בטקסט גלוי. השתמש בסיסמאות חזקות ואחרות לכל משתמש.</p>
         </div>
-      </div>
+        </div>
 
       {/* ── Create admin dialog ───────────────────────────────────────────── */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -406,6 +398,7 @@ function SettingsPage() {
           </DialogContent>
         </Dialog>
       )}
-    </div>
+      </div>
+    </AppShell>
   );
 }

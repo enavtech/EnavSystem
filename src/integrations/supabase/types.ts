@@ -47,6 +47,257 @@ export type Database = {
         }
         Relationships: []
       }
+      contacts: {
+        Row: {
+          id: string
+          name: string
+          phone: string | null
+          email: string | null
+          business_name: string | null
+          source: string
+          stage: string
+          assigned_to: string | null
+          plan_id: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+          initial_revenue: string | null
+          industry: string | null
+          business_goals: string | null
+          client_status: string | null
+          client_since: string | null
+          service_type: string | null
+          id_number: string | null
+          website: string | null
+          employees_count: number | null
+          contract_signed_date: string | null
+          contract_end_date: string | null
+          monthly_fee: string | null
+          monthly_ad_budget: string | null
+          business_type: string | null
+          tax_id: string | null
+          city: string | null
+          instagram_handle: string | null
+          facebook_url: string | null
+          tiktok_handle: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          phone?: string | null
+          email?: string | null
+          business_name?: string | null
+          source?: string
+          stage?: string
+          assigned_to?: string | null
+          plan_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          initial_revenue?: string | null
+          industry?: string | null
+          business_goals?: string | null
+          client_status?: string | null
+          client_since?: string | null
+          service_type?: string | null
+          id_number?: string | null
+          website?: string | null
+          employees_count?: number | null
+          contract_signed_date?: string | null
+          contract_end_date?: string | null
+          monthly_fee?: string | null
+          monthly_ad_budget?: string | null
+          business_type?: string | null
+          tax_id?: string | null
+          city?: string | null
+          instagram_handle?: string | null
+          facebook_url?: string | null
+          tiktok_handle?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          phone?: string | null
+          email?: string | null
+          business_name?: string | null
+          source?: string
+          stage?: string
+          assigned_to?: string | null
+          plan_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          initial_revenue?: string | null
+          industry?: string | null
+          business_goals?: string | null
+          client_status?: string | null
+          client_since?: string | null
+          service_type?: string | null
+          id_number?: string | null
+          website?: string | null
+          employees_count?: number | null
+          contract_signed_date?: string | null
+          contract_end_date?: string | null
+          monthly_fee?: string | null
+          monthly_ad_budget?: string | null
+          business_type?: string | null
+          tax_id?: string | null
+          city?: string | null
+          instagram_handle?: string | null
+          facebook_url?: string | null
+          tiktok_handle?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meetings: {
+        Row: {
+          id: string
+          contact_id: string | null
+          plan_id: string | null
+          type: string
+          title: string
+          meeting_date: string
+          meeting_time: string | null
+          duration_minutes: number | null
+          status: string
+          attendees: string[]
+          location: string | null
+          notes: string | null
+          action_items: Json
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          contact_id?: string | null
+          plan_id?: string | null
+          type?: string
+          title: string
+          meeting_date: string
+          meeting_time?: string | null
+          duration_minutes?: number | null
+          status?: string
+          attendees?: string[]
+          location?: string | null
+          notes?: string | null
+          action_items?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          contact_id?: string | null
+          plan_id?: string | null
+          type?: string
+          title?: string
+          meeting_date?: string
+          meeting_time?: string | null
+          duration_minutes?: number | null
+          status?: string
+          attendees?: string[]
+          location?: string | null
+          notes?: string | null
+          action_items?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetings_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_items: {
+        Row: {
+          id: string
+          contact_id: string | null
+          plan_id: string | null
+          title: string
+          content_type: string
+          status: string
+          shoot_date: string | null
+          due_date: string | null
+          delivery_date: string | null
+          assigned_editor: string | null
+          notes: string | null
+          drive_link: string | null
+          position: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          contact_id?: string | null
+          plan_id?: string | null
+          title: string
+          content_type?: string
+          status?: string
+          shoot_date?: string | null
+          due_date?: string | null
+          delivery_date?: string | null
+          assigned_editor?: string | null
+          notes?: string | null
+          drive_link?: string | null
+          position?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          contact_id?: string | null
+          plan_id?: string | null
+          title?: string
+          content_type?: string
+          status?: string
+          shoot_date?: string | null
+          due_date?: string | null
+          delivery_date?: string | null
+          assigned_editor?: string | null
+          notes?: string | null
+          drive_link?: string | null
+          position?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_items_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           admin_password_hash: string | null
