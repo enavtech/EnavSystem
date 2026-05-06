@@ -79,10 +79,13 @@ function shootDayKind(sd: ShootDay): "upcoming" | "today" | "done" | "pending" {
 }
 
 const KIND_STYLE = {
-  upcoming: { border: "#3b82f6", lBg: "#dbeafe", lColor: "#2563eb", label: "מתוכנן"  },
-  today:    { border: "#f59e0b", lBg: "#fef3c7", lColor: "#d97706", label: "היום!"   },
-  done:     { border: "#10b981", lBg: "#d1fae5", lColor: "#059669", label: "הושלם"   },
-  pending:  { border: "#ef4444", lBg: "#fee2e2", lColor: "#dc2626", label: "לא הושלם"},
+  // border  = colored right-border of the card
+  // dayBg/dayColor = the date-number box (kept neutral/classic)
+  // lBg/lColor = status badge pill
+  upcoming: { border: "#3b82f6", dayBg: "#f8fafc", dayColor: "#0f172a", lBg: "#eff6ff", lColor: "#1d4ed8", label: "מתוכנן"   },
+  today:    { border: "#0f172a", dayBg: "#0f172a", dayColor: "#ffffff", lBg: "#0f172a", lColor: "#ffffff", label: "היום!"    },
+  done:     { border: "#cbd5e1", dayBg: "#f8fafc", dayColor: "#94a3b8", lBg: "#f1f5f9", lColor: "#475569", label: "הושלם"    },
+  pending:  { border: "#f87171", dayBg: "#f8fafc", dayColor: "#0f172a", lBg: "#fff1f2", lColor: "#be123c", label: "לא הושלם" },
 };
 
 const HE_MONTHS = [
@@ -461,17 +464,17 @@ function ShootDayCard({ shootDay, contact, isSelected, onClick, onBriefClick }: 
       }}
     >
       <div className="flex items-center gap-3 px-3 py-3">
-        {/* Day number — prominent, right side (RTL start) */}
+        {/* Day number — neutral/classic box, only today gets filled */}
         <div
-          className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl"
-          style={{ background: style.lBg }}
+          className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border border-border/60"
+          style={{ background: style.dayBg }}
         >
           {dayNum !== null ? (
-            <span className="text-2xl font-black leading-none tabular-nums" style={{ color: style.lColor }}>
+            <span className="text-2xl font-black leading-none tabular-nums" style={{ color: style.dayColor }}>
               {dayNum}
             </span>
           ) : (
-            <Calendar className="h-5 w-5" style={{ color: style.lColor }} />
+            <Calendar className="h-5 w-5 text-muted-foreground/40" />
           )}
         </div>
 
