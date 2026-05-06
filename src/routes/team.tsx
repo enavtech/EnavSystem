@@ -271,7 +271,7 @@ function TeamPage() {
   return (
     <AppShell>
       <Toaster position="top-center" dir="rtl" />
-      <div className="min-h-screen px-6 py-6" style={{ direction: "rtl" }}>
+      <div className="min-h-screen px-4 py-6" style={{ direction: "rtl" }}>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <header className="mb-7 flex flex-wrap items-start justify-between gap-4">
@@ -349,13 +349,13 @@ function TeamPage() {
 
         {/* ── Kanban view ───────────────────────────────────────────────────── */}
         {tab === "kanban" && (
-          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.max(statuses.length, 1)}, minmax(220px, 1fr))` }}>
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(statuses.length, 1)}, minmax(0, 1fr))` }}>
             {statuses.map(s => {
               const items = filteredTasks.filter(t => t.status === s.status_key).sort((a, b) => a.sort_order - b.sort_order);
               const isOver = dragOverCol === s.status_key;
               return (
                 <div key={s.id}
-                  className={cn("glass flex flex-col rounded-2xl p-3 transition-all", isOver && "ring-2")}
+                  className={cn("glass flex flex-col rounded-xl p-2.5 transition-all", isOver && "ring-2")}
                   style={isOver ? { boxShadow: `0 0 0 2px ${s.color}55` } : {}}
                   onDragOver={e => {
                     if (!draggingId) return;
@@ -847,7 +847,7 @@ function InternalTaskCard({ task, member, plan, clientTask, statuses, onEdit, on
       style={{ borderInlineStartWidth: 3, borderInlineStartStyle: "solid", borderInlineStartColor: statusColor }}
     >
       {/* Top row */}
-      <div className="flex items-start gap-2 p-3 pb-0">
+      <div className="flex items-start gap-2 p-2.5 pb-0">
         <div className="min-w-0 flex-1">
           <div className={cn("text-sm font-medium leading-snug text-foreground", isDoneTask && "line-through opacity-50")}>
             {task.title}
@@ -867,7 +867,7 @@ function InternalTaskCard({ task, member, plan, clientTask, statuses, onEdit, on
       </div>
 
       {/* Tags row */}
-      <div className="flex flex-wrap items-center gap-1 px-3 pt-2">
+      <div className="flex flex-wrap items-center gap-1 px-2.5 pt-1.5">
         {/* Priority */}
         {pMeta && (
           <span className="rounded-md px-1.5 py-0.5 text-[10px] font-medium" style={{ background: pMeta.bg, color: pMeta.color }}>
@@ -906,7 +906,7 @@ function InternalTaskCard({ task, member, plan, clientTask, statuses, onEdit, on
       </div>
 
       {/* Status selector */}
-      <div className="px-3 pb-3 pt-2">
+      <div className="px-2.5 pb-2.5 pt-2">
         <Select value={task.status} onValueChange={onStatus}>
           <SelectTrigger className="h-7 w-full cursor-pointer text-[11px]">
             <SelectValue />
