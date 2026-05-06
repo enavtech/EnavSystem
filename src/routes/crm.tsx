@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isAdmin } from "@/lib/admin-session";
 import { Input } from "@/components/ui/input";
@@ -15,15 +15,18 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 import {
-  Plus, Phone, Mail, Building2, ChevronRight, User, Pencil,
-  Trash2, Loader2, Search, SlidersHorizontal, X,
+  Plus, Phone, Mail, Building2, X, Loader2, Search, MapPin,
+  Globe, Instagram, Facebook, UserCheck, ChevronRight, Pencil,
+  Trash2, Zap, ExternalLink, Users,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/crm")({
   component: CRMPage,
-  head: () => ({ meta: [{ title: "CRM — לידים ולקוחות" }] }),
+  head: () => ({ meta: [{ title: "לידים" }] }),
 });
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type Contact = {
   id: string;
@@ -38,7 +41,35 @@ export type Contact = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  // Business details
+  industry: string | null;
+  business_type: string | null;
+  service_type: string | null;
+  city: string | null;
+  website: string | null;
+  employees_count: number | null;
+  initial_revenue: string | null;
+  monthly_fee: string | null;
+  monthly_ad_budget: string | null;
+  business_goals: string | null;
+  // Legal
+  id_number: string | null;
+  tax_id: string | null;
+  // Social
+  instagram_handle: string | null;
+  facebook_url: string | null;
+  tiktok_handle: string | null;
+  // Client
+  client_status: string | null;
+  client_since: string | null;
+  // Meta Lead Ads
+  meta_lead_id: string | null;
+  form_name: string | null;
+  ad_name: string | null;
+  campaign_name: string | null;
 };
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const STAGES = [
   "ליד חדש",
@@ -49,26 +80,26 @@ const STAGES = [
   "נסגר",
 ] as const;
 
-/* per-stage accent colors */
-const STAGE_META: Record<
-  string,
-  { dot: string; pill: string; col: string }
-> = {
-  "ליד חדש":          { dot: "bg-slate-400",  pill: "bg-slate-100 text-slate-700",     col: "border-t-slate-300" },
-  "שיחת סינון":       { dot: "bg-blue-500",   pill: "bg-blue-100 text-blue-800",       col: "border-t-blue-400" },
-  "פגישת אסטרטגיה":  { dot: "bg-violet-500", pill: "bg-violet-100 text-violet-800",   col: "border-t-violet-400" },
-  "לקוח פעיל":        { dot: "bg-green-500",  pill: "bg-green-100 text-green-800",     col: "border-t-green-400" },
-  "Upsell":           { dot: "bg-amber-500",  pill: "bg-amber-100 text-amber-800",     col: "border-t-amber-400" },
-  "נסגר":             { dot: "bg-red-400",    pill: "bg-red-100 text-red-700",         col: "border-t-red-400" },
+type Stage = typeof STAGES[number];
+
+const STAGE_META: Record<Stage, { color: string; bg: string; border: string }> = {
+  "ליד חדש":          { color: "#64748b", bg: "#64748b12", border: "#64748b40" },
+  "שיחת סינון":       { color: "#3b82f6", bg: "#3b82f612", border: "#3b82f640" },
+  "פגישת אסטרטגיה":  { color: "#8b5cf6", bg: "#8b5cf612", border: "#8b5cf640" },
+  "לקוח פעיל":        { color: "#10b981", bg: "#10b98112", border: "#10b98140" },
+  "Upsell":           { color: "#f59e0b", bg: "#f59e0b12", border: "#f59e0b40" },
+  "נסגר":             { color: "#ef4444", bg: "#ef444412", border: "#ef444440" },
 };
 
-const SOURCES = ["ידני", "אורגני", "פרסום", "הפניה", "אחר"];
+const SOURCES = ["ידני", "מטא", "אורגני", "פרסום", "הפניה", "אחר"];
 const TEAM_MEMBERS = ["ענב", "אוריאל", "דניאל"];
 
 const EMPTY_FORM = {
   name: "", phone: "", email: "", business_name: "",
-  source: "ידני", stage: "ליד חדש", assigned_to: "", notes: "",
+  source: "ידני", stage: "ליד חדש" as Stage, assigned_to: "", notes: "",
 };
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 function CRMPage() {
   const navigate = useNavigate();
@@ -76,13 +107,13 @@ function CRMPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
-  const [detailContact, setDetailContact] = useState<Contact | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [converting, setConverting] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filterAssignee, setFilterAssignee] = useState("הכל");
 
   useEffect(() => {
     if (!isAdmin()) { navigate({ to: "/login" }); return; }
@@ -94,15 +125,17 @@ function CRMPage() {
     const { data } = await supabase
       .from("contacts")
       .select("*")
+      .neq("stage", "לקוח פעיל")
       .order("created_at", { ascending: false });
     setContacts((data ?? []) as Contact[]);
     setLoading(false);
   }
 
+  const selected = useMemo(() => contacts.find(c => c.id === selectedId) ?? null, [contacts, selectedId]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return contacts.filter((c) => {
-      if (filterAssignee !== "הכל" && c.assigned_to !== filterAssignee) return false;
+    return contacts.filter(c => {
       if (!q) return true;
       return (
         c.name.toLowerCase().includes(q) ||
@@ -110,19 +143,20 @@ function CRMPage() {
         (c.phone ?? "").includes(q)
       );
     });
-  }, [contacts, search, filterAssignee]);
+  }, [contacts, search]);
 
   const grouped = useMemo(() => {
     const map: Record<string, Contact[]> = {};
-    STAGES.forEach((s) => { map[s] = []; });
-    filtered.forEach((c) => {
+    STAGES.forEach(s => { map[s] = []; });
+    filtered.forEach(c => {
+      if (c.stage === "לקוח פעיל") return; // clients are in /clients
       if (map[c.stage]) map[c.stage].push(c);
       else map["ליד חדש"].push(c);
     });
     return map;
   }, [filtered]);
 
-  async function save() {
+  async function saveNew() {
     if (!form.name.trim()) { toast.error("חובה שם"); return; }
     setSaving(true);
     const payload = {
@@ -138,10 +172,10 @@ function CRMPage() {
     };
     if (editContact) {
       const { error } = await supabase.from("contacts").update(payload).eq("id", editContact.id);
-      if (error) { toast.error(error.message); } else { toast.success("עודכן"); }
+      if (error) toast.error(error.message); else toast.success("עודכן");
     } else {
       const { error } = await supabase.from("contacts").insert(payload);
-      if (error) { toast.error(error.message); } else { toast.success("נוצר ליד חדש"); }
+      if (error) toast.error(error.message); else toast.success("ליד נוצר");
     }
     setSaving(false);
     setShowAdd(false);
@@ -150,37 +184,46 @@ function CRMPage() {
     void load();
   }
 
+  // Auto-save single field for selected lead
+  const saveField = useCallback(async (id: string, patch: Partial<Contact>) => {
+    await supabase.from("contacts").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+    setContacts(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+  }, []);
+
   async function deleteContact(id: string) {
-    if (!confirm("למחוק?")) return;
+    if (!confirm("למחוק ליד זה לצמיתות?")) return;
     await supabase.from("contacts").delete().eq("id", id);
-    setDetailContact(null);
+    setSelectedId(null);
     void load();
   }
 
   async function moveStage(id: string, stage: string) {
-    await supabase
-      .from("contacts")
-      .update({ stage, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, stage } : c)));
+    await supabase.from("contacts").update({ stage, updated_at: new Date().toISOString() }).eq("id", id);
+    setContacts(prev => prev.map(c => c.id === id ? { ...c, stage } : c));
   }
 
-  function openEdit(c: Contact) {
-    setForm({
-      name: c.name, phone: c.phone ?? "", email: c.email ?? "",
-      business_name: c.business_name ?? "", source: c.source,
-      stage: c.stage, assigned_to: c.assigned_to ?? "", notes: c.notes ?? "",
-    });
-    setEditContact(c);
-    setShowAdd(true);
-    setDetailContact(null);
+  async function convertToClient(contact: Contact) {
+    if (!confirm(`להמיר את "${contact.name}" ללקוח פעיל?`)) return;
+    setConverting(true);
+    const { error } = await supabase.from("contacts").update({
+      stage: "לקוח פעיל",
+      client_status: "active",
+      client_since: new Date().toISOString().slice(0, 10),
+      updated_at: new Date().toISOString(),
+    }).eq("id", contact.id);
+    setConverting(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${contact.name} הועבר ללקוחות!`);
+    setSelectedId(null);
+    void load();
+    navigate({ to: "/clients" });
   }
 
   async function handleColumnDrop(stage: string) {
     if (!dragId) return;
+    if (stage === "לקוח פעיל") { toast.error("השתמש בכפתור 'המרה ללקוח' בכרטיסיית הליד"); setDragId(null); setDragOver(null); return; }
     await moveStage(dragId, stage);
-    setDragId(null);
-    setDragOver(null);
+    setDragId(null); setDragOver(null);
   }
 
   if (loading) return (
@@ -191,450 +234,499 @@ function CRMPage() {
     </AppShell>
   );
 
+  const nonClientStages = STAGES.filter(s => s !== "לקוח פעיל");
+
   return (
     <AppShell>
       <Toaster position="top-center" dir="rtl" />
 
-      {/* ── Page header ────────────────────────────────────── */}
-      <div className="border-b border-border bg-white px-7 py-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <div className="border-b border-border bg-background px-6 py-4" style={{ direction: "rtl" }}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              לידים ולקוחות
-            </h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              ניהול צינור המכירות ומעקב אחרי לידים
-            </p>
+            <h1 className="text-xl font-bold text-foreground">לידים</h1>
+            <p className="text-sm text-muted-foreground">צינור מכירות ומעקב לידים</p>
           </div>
-
-          {/* Search + filter + add */}
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="חיפוש ליד..."
-                className="h-9 w-52 border-border bg-white pe-9 text-sm focus:border-primary focus:ring-2 focus:ring-primary/15"
-              />
+              <Input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="חיפוש..." className="h-9 w-48 pe-9 text-sm" />
               {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
+                <button onClick={() => setSearch("")} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X className="h-3 w-3" />
                 </button>
               )}
             </div>
-            <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-              <SelectTrigger className="h-9 w-36 border-border bg-white text-sm">
-                <SlidersHorizontal className="me-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="הכל">כל האחראים</SelectItem>
-                {TEAM_MEMBERS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              onClick={() => { setForm({ ...EMPTY_FORM }); setEditContact(null); setShowAdd(true); }}
-              className="h-9 gap-1.5"
-            >
-              <Plus className="h-4 w-4" />
-              ליד חדש
+            <Button size="sm" className="cursor-pointer h-9 gap-1.5"
+              onClick={() => { setForm({ ...EMPTY_FORM }); setEditContact(null); setShowAdd(true); }}>
+              <Plus className="h-4 w-4" /> ליד חדש
             </Button>
           </div>
         </div>
 
-        {/* Stage stats strip */}
-        <div className="mt-4 flex items-center gap-5 overflow-x-auto">
-          {STAGES.map((s) => {
+        {/* Stage stats */}
+        <div className="mt-3 flex items-center gap-4 overflow-x-auto">
+          {nonClientStages.map(s => {
             const m = STAGE_META[s];
             const count = grouped[s]?.length ?? 0;
             return (
               <div key={s} className="flex items-center gap-1.5 whitespace-nowrap">
-                <span className={cn("h-2 w-2 rounded-full flex-shrink-0", m.dot)} />
+                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
                 <span className="text-xs text-muted-foreground">{s}</span>
-                <span className="text-xs font-bold text-foreground">{count}</span>
+                <span className="text-xs font-bold tabular-nums" style={{ color: m.color }}>{count}</span>
               </div>
             );
           })}
-          <div className="me-auto text-xs text-muted-foreground">
-            {filtered.length} סה״כ
+          <span className="ms-auto text-xs text-muted-foreground">{filtered.filter(c => c.stage !== "לקוח פעיל").length} סה״כ</span>
+        </div>
+      </div>
+
+      {/* ── Main area ──────────────────────────────────────────── */}
+      <div className="flex" style={{ direction: "rtl" }}>
+
+        {/* Kanban board */}
+        <div className={cn("flex-1 overflow-x-auto px-4 py-5 transition-all", selectedId && "hidden lg:block lg:w-[calc(100%-480px)]")}>
+          <div className="flex gap-3">
+            {nonClientStages.map(stage => {
+              const m = STAGE_META[stage];
+              const cards = grouped[stage] ?? [];
+              const isOver = dragOver === stage;
+              return (
+                <div key={stage}
+                  className={cn("flex w-[230px] flex-shrink-0 flex-col rounded-2xl border bg-card transition-all",
+                    isOver ? "ring-2" : "")}
+                  style={{
+                    borderTopWidth: 2,
+                    borderTopColor: m.color,
+                    ...(isOver ? { boxShadow: `0 0 0 2px ${m.color}55` } : {}),
+                  }}
+                  onDragOver={e => { e.preventDefault(); setDragOver(stage); }}
+                  onDragLeave={() => setDragOver(null)}
+                  onDrop={() => { void handleColumnDrop(stage); }}
+                >
+                  <div className="flex items-center justify-between px-3 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: m.color, boxShadow: `0 0 5px ${m.color}80` }} />
+                      <span className="text-sm font-semibold">{stage}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="glass-subtle rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                        {cards.length}
+                      </span>
+                      <button onClick={() => { setForm({ ...EMPTY_FORM, stage }); setEditContact(null); setShowAdd(true); }}
+                        className="cursor-pointer flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 overflow-y-auto px-2.5 pb-2.5">
+                    {cards.map(c => {
+                      const isSelected = selectedId === c.id;
+                      return (
+                        <div key={c.id}
+                          draggable
+                          onDragStart={() => setDragId(c.id)}
+                          onDragEnd={() => { setDragId(null); setDragOver(null); }}
+                          onClick={() => setSelectedId(isSelected ? null : c.id)}
+                          className={cn(
+                            "group cursor-pointer rounded-xl border bg-background p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-[1px]",
+                            isSelected ? "border-primary ring-2 ring-primary/20" : "border-border",
+                            dragId === c.id && "opacity-40 scale-95"
+                          )}
+                          style={isSelected ? { borderColor: m.color, boxShadow: `0 0 0 2px ${m.color}25` } : {}}
+                        >
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold text-foreground">{c.name}</div>
+                              {c.business_name && (
+                                <div className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                                  <Building2 className="h-3 w-3 shrink-0" />
+                                  {c.business_name}
+                                </div>
+                              )}
+                            </div>
+                            {c.meta_lead_id && (
+                              <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                                style={{ background: "#1877f218", color: "#1877f2" }}>META</span>
+                            )}
+                          </div>
+                          <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                            {c.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</span>}
+                            {c.city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{c.city}</span>}
+                          </div>
+                          {c.assigned_to && (
+                            <div className="mt-1.5 text-[10px] text-muted-foreground/60">← {c.assigned_to}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {cards.length === 0 && (
+                      <div className="rounded-xl border-2 border-dashed border-border py-6 text-center text-xs text-muted-foreground/50">
+                        {dragId ? "שחרר כאן" : "אין לידים"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+
+        {/* ── Detail panel ──────────────────────────────────────── */}
+        {selectedId && selected && (
+          <LeadDetail
+            contact={selected}
+            onClose={() => setSelectedId(null)}
+            onSaveField={(patch) => saveField(selected.id, patch)}
+            onMoveStage={(stage) => moveStage(selected.id, stage)}
+            onConvert={() => convertToClient(selected)}
+            onDelete={() => deleteContact(selected.id)}
+            onEditBasic={() => {
+              setForm({
+                name: selected.name, phone: selected.phone ?? "",
+                email: selected.email ?? "", business_name: selected.business_name ?? "",
+                source: selected.source, stage: selected.stage as Stage,
+                assigned_to: selected.assigned_to ?? "", notes: selected.notes ?? "",
+              });
+              setEditContact(selected);
+              setShowAdd(true);
+            }}
+            converting={converting}
+          />
+        )}
       </div>
 
-      {/* ── Kanban board ───────────────────────────────────── */}
-      <div className="overflow-x-auto px-5 py-5">
-        <div className="flex min-w-max gap-3.5">
-          {STAGES.map((stage) => {
-            const m = STAGE_META[stage];
-            const cards = grouped[stage] ?? [];
-            const isOver = dragOver === stage;
-            return (
-              <div
-                key={stage}
-                className={cn(
-                  "flex w-[248px] flex-shrink-0 flex-col rounded-2xl border-t-2 bg-white transition-all",
-                  m.col,
-                  isOver
-                    ? "shadow-lg ring-2 ring-primary/30"
-                    : "border border-border shadow-sm"
-                )}
-                style={isOver ? { borderTopColor: undefined } : undefined}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(stage); }}
-                onDragLeave={() => setDragOver(null)}
-                onDrop={() => { void handleColumnDrop(stage); setDragOver(null); }}
-              >
-                {/* Column header */}
-                <div className="flex items-center justify-between px-4 pb-2.5 pt-3.5">
-                  <div className="flex items-center gap-2">
-                    <span className={cn("h-2 w-2 rounded-full", m.dot)} />
-                    <span className="text-sm font-semibold text-foreground">{stage}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                      {cards.length}
-                    </span>
-                    <button
-                      onClick={() => {
-                        setForm({ ...EMPTY_FORM, stage });
-                        setEditContact(null);
-                        setShowAdd(true);
-                      }}
-                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Cards */}
-                <div className="flex flex-col gap-2 overflow-y-auto px-3 pb-3">
-                  {cards.map((c) => (
-                    <ContactCard
-                      key={c.id}
-                      contact={c}
-                      isDragging={dragId === c.id}
-                      meta={m}
-                      onDragStart={() => setDragId(c.id)}
-                      onDragEnd={() => { setDragId(null); setDragOver(null); }}
-                      onClick={() => setDetailContact(c)}
-                    />
-                  ))}
-                  {cards.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
-                      {dragId ? "שחרר כאן" : "אין לידים בשלב זה"}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── Add / Edit dialog ──────────────────────────────── */}
-      <Dialog open={showAdd} onOpenChange={(o) => { if (!o) { setShowAdd(false); setEditContact(null); } }}>
-        <DialogContent className="max-w-md">
+      {/* ── Add / Edit dialog ──────────────────────────────────── */}
+      <Dialog open={showAdd} onOpenChange={o => { if (!o) { setShowAdd(false); setEditContact(null); } }}>
+        <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>
-            <DialogTitle>{editContact ? "עריכת איש קשר" : "ליד חדש"}</DialogTitle>
+            <DialogTitle>{editContact ? "עריכה בסיסית" : "ליד חדש"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">שם מלא *</label>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="ישראל ישראלי" />
+                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="ישראל ישראלי" autoFocus />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">עסק</label>
-                <Input value={form.business_name} onChange={(e) => setForm({ ...form, business_name: e.target.value })} placeholder="שם העסק" />
+                <label className="text-xs font-medium text-muted-foreground">שם עסק</label>
+                <Input value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })} placeholder="שם העסק" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">טלפון</label>
-                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="050-0000000" dir="ltr" />
+                <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="050-0000000" dir="ltr" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">מייל</label>
-                <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="mail@example.com" dir="ltr" />
+                <Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="mail@example.com" dir="ltr" />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">מקור</label>
-                <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
+                <Select value={form.source} onValueChange={v => setForm({ ...form, source: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  <SelectContent>{SOURCES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">שלב</label>
-                <Select value={form.stage} onValueChange={(v) => setForm({ ...form, stage: v })}>
+                <Select value={form.stage} onValueChange={v => setForm({ ...form, stage: v as Stage })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  <SelectContent>{nonClientStages.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">אחראי</label>
-                <Select value={form.assigned_to || "_none"} onValueChange={(v) => setForm({ ...form, assigned_to: v === "_none" ? "" : v })}>
+                <Select value={form.assigned_to || "__none__"} onValueChange={v => setForm({ ...form, assigned_to: v === "__none__" ? "" : v })}>
                   <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="_none">—</SelectItem>
-                    {TEAM_MEMBERS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    <SelectItem value="__none__">—</SelectItem>
+                    {TEAM_MEMBERS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">הערות</label>
-              <Textarea
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                placeholder="הערות..."
-                className="min-h-[70px]"
-              />
+              <label className="text-xs font-medium text-muted-foreground">הערות ראשוניות</label>
+              <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="הערות..." className="min-h-[60px]" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowAdd(false); setEditContact(null); }}>ביטול</Button>
-            <Button onClick={save} disabled={saving}>
+            <Button variant="outline" className="cursor-pointer" onClick={() => { setShowAdd(false); setEditContact(null); }}>ביטול</Button>
+            <Button className="cursor-pointer" onClick={saveNew} disabled={saving}>
               {saving && <Loader2 className="ms-2 h-4 w-4 animate-spin" />}
-              {editContact ? "עדכן" : "צור ליד"}
+              {editContact ? "שמור" : "צור ליד"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* ── Contact detail panel ───────────────────────────── */}
-      {detailContact && (
-        <div
-          className="fixed inset-0 z-50 bg-black/20 backdrop-blur-[2px]"
-          onClick={() => setDetailContact(null)}
-        >
-          <div
-            className="absolute inset-y-0 left-0 flex w-full max-w-sm flex-col bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Panel header */}
-            <div className="flex items-start justify-between border-b border-border px-6 py-5">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
-                      STAGE_META[detailContact.stage]?.pill
-                    )}
-                  >
-                    {detailContact.stage}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{detailContact.source}</span>
-                </div>
-                <h2 className="mt-1.5 text-lg font-bold text-foreground">{detailContact.name}</h2>
-                {detailContact.business_name && (
-                  <p className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground">
-                    <Building2 className="h-3.5 w-3.5" />
-                    {detailContact.business_name}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setDetailContact(null)}
-                className="mt-1 rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto">
-              {/* Stage pipeline */}
-              <div className="border-b border-border px-6 py-4">
-                <div className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  שלב בפייפליין
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {STAGES.map((s, i) => {
-                    const active = detailContact.stage === s;
-                    const passed = STAGES.indexOf(detailContact.stage as typeof STAGES[number]) > i;
-                    return (
-                      <button
-                        key={s}
-                        onClick={() =>
-                          void moveStage(detailContact.id, s).then(() =>
-                            setDetailContact({ ...detailContact, stage: s })
-                          )
-                        }
-                        className={cn(
-                          "flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all text-right",
-                          active
-                            ? "bg-primary text-primary-foreground"
-                            : passed
-                            ? "text-muted-foreground/60 hover:bg-muted"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-2 w-2 rounded-full flex-shrink-0",
-                            active
-                              ? "bg-white"
-                              : passed
-                              ? "bg-muted-foreground/30"
-                              : STAGE_META[s]?.dot
-                          )}
-                        />
-                        {s}
-                        {active && <ChevronRight className="me-auto h-3.5 w-3.5 opacity-70 rtl:rotate-180" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Contact info */}
-              <div className="space-y-3 px-6 py-4">
-                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  פרטי קשר
-                </div>
-                <div className="space-y-2 rounded-xl border border-border p-4">
-                  {detailContact.phone && (
-                    <InfoRow icon={<Phone className="h-3.5 w-3.5" />} label="טלפון">
-                      <a href={`tel:${detailContact.phone}`} className="text-primary hover:underline" dir="ltr">
-                        {detailContact.phone}
-                      </a>
-                    </InfoRow>
-                  )}
-                  {detailContact.email && (
-                    <InfoRow icon={<Mail className="h-3.5 w-3.5" />} label="מייל">
-                      <a href={`mailto:${detailContact.email}`} className="text-primary hover:underline" dir="ltr">
-                        {detailContact.email}
-                      </a>
-                    </InfoRow>
-                  )}
-                  <InfoRow icon={<User className="h-3.5 w-3.5" />} label="אחראי">
-                    {detailContact.assigned_to ?? "—"}
-                  </InfoRow>
-                  <InfoRow icon={<ChevronRight className="h-3.5 w-3.5" />} label="מקור">
-                    {detailContact.source}
-                  </InfoRow>
-                </div>
-
-                {detailContact.notes && (
-                  <div className="rounded-xl border border-border p-4">
-                    <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      הערות
-                    </div>
-                    <p className="whitespace-pre-wrap text-sm text-foreground">{detailContact.notes}</p>
-                  </div>
-                )}
-
-                <p className="text-xs text-muted-foreground">
-                  נוצר: {new Date(detailContact.created_at).toLocaleDateString("he-IL")}
-                </p>
-              </div>
-            </div>
-
-            {/* Panel footer */}
-            <div className="flex items-center gap-2 border-t border-border px-6 py-4">
-              <Button size="sm" onClick={() => openEdit(detailContact)}>
-                <Pencil className="ms-1.5 h-3.5 w-3.5" />
-                עריכה
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => void deleteContact(detailContact.id)}
-              >
-                <Trash2 className="ms-1.5 h-3.5 w-3.5" />
-                מחיקה
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </AppShell>
   );
 }
 
-/* ── Sub-components ───────────────────────────────────── */
+// ─── Lead detail panel ────────────────────────────────────────────────────────
 
-function ContactCard({
-  contact, isDragging, meta, onDragStart, onDragEnd, onClick,
-}: {
+function LeadDetail({ contact, onClose, onSaveField, onMoveStage, onConvert, onDelete, onEditBasic, converting }: {
   contact: Contact;
-  isDragging: boolean;
-  meta: { dot: string; pill: string };
-  onDragStart: () => void;
-  onDragEnd: () => void;
-  onClick: () => void;
+  onClose: () => void;
+  onSaveField: (patch: Partial<Contact>) => Promise<void>;
+  onMoveStage: (stage: string) => void;
+  onConvert: () => void;
+  onDelete: () => void;
+  onEditBasic: () => void;
+  converting: boolean;
 }) {
+  // Local state per-field for controlled inputs with onBlur save
+  const [f, setF] = useState<Partial<Contact>>({});
+
+  // Reset local state when contact changes
+  useEffect(() => { setF({}); }, [contact.id]);
+
+  function val(key: keyof Contact): string {
+    return String(f[key] !== undefined ? f[key] : (contact[key] ?? ""));
+  }
+
+  function change(key: keyof Contact, v: string) {
+    setF(prev => ({ ...prev, [key]: v }));
+  }
+
+  async function blur(key: keyof Contact) {
+    if (f[key] === undefined) return;
+    const v = f[key];
+    if (v === (contact[key] ?? "")) return;
+    await onSaveField({ [key]: (v === "" ? null : v) } as Partial<Contact>);
+  }
+
+  function Field({ label, field, placeholder, dir: d }: { label: string; field: keyof Contact; placeholder?: string; dir?: "ltr" | "rtl" }) {
+    return (
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{label}</label>
+        <Input
+          value={val(field)}
+          onChange={e => change(field, e.target.value)}
+          onBlur={() => void blur(field)}
+          placeholder={placeholder}
+          dir={d}
+          className="h-9 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
+        />
+      </div>
+    );
+  }
+
+  const stageMeta = STAGE_META[contact.stage as Stage] ?? STAGE_META["ליד חדש"];
+  const nonClientStages = STAGES.filter(s => s !== "לקוח פעיל");
+
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onClick={onClick}
-      className={cn(
-        "cursor-pointer rounded-xl border border-border bg-white p-3.5 transition-all",
-        "hover:border-primary/25 hover:shadow-md hover:-translate-y-0.5",
-        isDragging && "opacity-40 shadow-lg rotate-1"
-      )}
+      className="fixed inset-0 z-50 flex items-stretch justify-start bg-black/25 backdrop-blur-[2px] lg:relative lg:inset-auto lg:z-auto lg:bg-transparent lg:backdrop-blur-none"
+      onClick={e => { if (e.currentTarget === e.target) onClose(); }}
+      style={{ direction: "rtl" }}
     >
-      {/* Name + source */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-foreground">{contact.name}</div>
-          {contact.business_name && (
-            <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <Building2 className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{contact.business_name}</span>
-            </div>
-          )}
-        </div>
-        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] whitespace-nowrap text-muted-foreground">
-          {contact.source}
-        </span>
-      </div>
+      <div className="flex w-full max-w-[480px] flex-col overflow-hidden bg-background shadow-2xl lg:border-r lg:border-border lg:shadow-none"
+        onClick={e => e.stopPropagation()}>
 
-      {/* Footer row */}
-      <div className="mt-2.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-        {contact.phone && (
-          <a
-            href={`tel:${contact.phone}`}
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1 hover:text-primary"
-          >
-            <Phone className="h-3 w-3" />
-            {contact.phone}
-          </a>
-        )}
-        {contact.assigned_to && (
-          <span className="me-auto flex items-center gap-1 rounded-full bg-primary/8 px-2 py-0.5 text-primary">
-            <User className="h-3 w-3" />
-            {contact.assigned_to}
-          </span>
-        )}
+        {/* Header */}
+        <div className="shrink-0 border-b border-border px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                  style={{ background: stageMeta.bg, color: stageMeta.color, border: `1px solid ${stageMeta.border}` }}>
+                  {contact.stage}
+                </span>
+                {contact.meta_lead_id && (
+                  <span className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    style={{ background: "#1877f215", color: "#1877f2", border: "1px solid #1877f230" }}>
+                    META · {contact.form_name ?? "ליד"}
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground">{contact.source}</span>
+              </div>
+              <h2 className="mt-1.5 truncate text-lg font-bold text-foreground">{contact.name}</h2>
+              {contact.business_name && (
+                <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Building2 className="h-3.5 w-3.5 shrink-0" />{contact.business_name}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <button onClick={onEditBasic} className="cursor-pointer flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={onDelete} className="cursor-pointer flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-500">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={onClose} className="cursor-pointer flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Convert CTA */}
+          <Button className="mt-3 w-full cursor-pointer gap-2" onClick={onConvert} disabled={converting}
+            style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
+            {converting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+            המרה ללקוח פעיל
+          </Button>
+        </div>
+
+        {/* Pipeline stepper */}
+        <div className="shrink-0 border-b border-border px-5 py-3">
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {nonClientStages.map((s, i) => {
+              const m = STAGE_META[s];
+              const isActive = contact.stage === s;
+              const isPast = nonClientStages.indexOf(contact.stage as typeof nonClientStages[number]) > i;
+              return (
+                <div key={s} className="flex items-center gap-1">
+                  {i > 0 && <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/30" />}
+                  <button
+                    onClick={() => onMoveStage(s)}
+                    className={cn(
+                      "cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium transition-all",
+                      isActive ? "text-white font-semibold" : isPast ? "text-muted-foreground/50 hover:opacity-80" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                    style={isActive ? { background: m.color } : {}}
+                  >
+                    {s}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Scrollable form */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+          {/* Contact info */}
+          <section>
+            <SectionTitle icon={<Phone className="h-3.5 w-3.5" />} title="פרטי קשר" />
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="שם מלא" field="name" />
+              <Field label="שם עסק" field="business_name" />
+              <Field label="טלפון" field="phone" dir="ltr" placeholder="050-0000000" />
+              <Field label="מייל" field="email" dir="ltr" placeholder="mail@example.com" />
+              <Field label="עיר" field="city" placeholder="תל אביב" />
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">אחראי</label>
+                <Select value={contact.assigned_to ?? "__none__"}
+                  onValueChange={v => void onSaveField({ assigned_to: v === "__none__" ? null : v })}>
+                  <SelectTrigger className="h-9 bg-muted/50 text-sm cursor-pointer border-muted-foreground/20"><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">—</SelectItem>
+                    {TEAM_MEMBERS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </section>
+
+          {/* Business details */}
+          <section>
+            <SectionTitle icon={<Building2 className="h-3.5 w-3.5" />} title="פרטים עסקיים" />
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="סוג עסק" field="business_type" placeholder="בע״מ / עצמאי" />
+              <Field label="תחום עיסוק" field="industry" placeholder="נדל״ן, מסחר…" />
+              <Field label="סוג שירות מבוקש" field="service_type" placeholder="ניהול מדיה, SEO…" />
+              <Field label="מספר עובדים" field="employees_count" placeholder="10" />
+              <Field label="הכנסה ראשונית" field="initial_revenue" placeholder="₪5,000" />
+              <Field label="תקציב פרסום חודשי" field="monthly_ad_budget" placeholder="₪3,000" />
+            </div>
+            <div className="mt-3">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">יעדים עסקיים</label>
+              <Textarea
+                value={val("business_goals")}
+                onChange={e => change("business_goals", e.target.value)}
+                onBlur={() => void blur("business_goals")}
+                placeholder="מה הם רוצים להשיג?"
+                className="min-h-[60px] bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
+              />
+            </div>
+          </section>
+
+          {/* Social */}
+          <section>
+            <SectionTitle icon={<Globe className="h-3.5 w-3.5" />} title="נוכחות דיגיטלית" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">אתר אינטרנט</label>
+                <div className="flex items-center gap-1">
+                  <Input value={val("website")} onChange={e => change("website", e.target.value)} onBlur={() => void blur("website")}
+                    placeholder="www.example.com" dir="ltr" className="h-9 flex-1 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background" />
+                  {contact.website && (
+                    <a href={contact.website.startsWith("http") ? contact.website : `https://${contact.website}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-primary transition-colors">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  <Instagram className="h-3 w-3" /> אינסטגרם
+                </label>
+                <Input value={val("instagram_handle")} onChange={e => change("instagram_handle", e.target.value)}
+                  onBlur={() => void blur("instagram_handle")} placeholder="@handle" dir="ltr" className="h-9 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background" />
+              </div>
+              <div>
+                <label className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  <Facebook className="h-3 w-3" /> פייסבוק
+                </label>
+                <Input value={val("facebook_url")} onChange={e => change("facebook_url", e.target.value)}
+                  onBlur={() => void blur("facebook_url")} placeholder="facebook.com/page" dir="ltr" className="h-9 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background" />
+              </div>
+              <Field label="טיקטוק" field="tiktok_handle" dir="ltr" placeholder="@handle" />
+            </div>
+          </section>
+
+          {/* Meta source info */}
+          {contact.meta_lead_id && (
+            <section>
+              <SectionTitle icon={<Zap className="h-3.5 w-3.5" />} title="מקור מטא" />
+              <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5 text-sm">
+                {contact.campaign_name && <div className="flex justify-between"><span className="text-xs text-muted-foreground">קמפיין</span><span className="text-xs font-medium">{contact.campaign_name}</span></div>}
+                {contact.ad_name && <div className="flex justify-between"><span className="text-xs text-muted-foreground">מודעה</span><span className="text-xs font-medium">{contact.ad_name}</span></div>}
+                {contact.form_name && <div className="flex justify-between"><span className="text-xs text-muted-foreground">טופס</span><span className="text-xs font-medium">{contact.form_name}</span></div>}
+                <div className="flex justify-between"><span className="text-xs text-muted-foreground">Lead ID</span><span className="font-mono text-[10px] text-muted-foreground">{contact.meta_lead_id}</span></div>
+              </div>
+            </section>
+          )}
+
+          {/* Notes */}
+          <section>
+            <SectionTitle icon={<Users className="h-3.5 w-3.5" />} title="הערות" />
+            <Textarea
+              value={val("notes")}
+              onChange={e => change("notes", e.target.value)}
+              onBlur={() => void blur("notes")}
+              placeholder="רשום כאן כל פרט רלוונטי מהשיחה…"
+              className="min-h-[100px] bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
+            />
+          </section>
+
+          {/* Created */}
+          <div className="text-[11px] text-muted-foreground/50 pb-2">
+            נוצר: {new Date(contact.created_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function InfoRow({
-  icon, label, children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}) {
+function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="text-muted-foreground">{icon}</span>
-      <span className="w-12 flex-shrink-0 text-xs text-muted-foreground">{label}</span>
-      <span className="text-foreground">{children}</span>
+    <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="text-muted-foreground/70">{icon}</span>
+      {title}
+      <span className="flex-1 border-t border-border/60" />
     </div>
   );
 }
