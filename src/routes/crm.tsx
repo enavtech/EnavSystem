@@ -15,9 +15,9 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 import {
-  Plus, Phone, Mail, Building2, X, Loader2, Search, MapPin,
+  Plus, Phone, Building2, X, Loader2, Search, MapPin,
   Globe, Instagram, Facebook, UserCheck, ChevronRight, Pencil,
-  Trash2, Zap, ExternalLink, Users,
+  Trash2, Zap, ExternalLink, Users, Settings2, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 
@@ -71,32 +71,32 @@ export type Contact = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STAGES = [
-  "ליד חדש",
-  "שיחת סינון",
-  "פגישת אסטרטגיה",
-  "לקוח פעיל",
-  "Upsell",
-  "נסגר",
-] as const;
+const CLIENT_STAGE = "לקוח פעיל"; // fixed — used for conversion, never editable
 
-type Stage = typeof STAGES[number];
+const DEFAULT_STAGES = ["ליד חדש", "שיחת סינון", "פגישת אסטרטגיה", "Upsell", "נסגר"];
 
-const STAGE_META: Record<Stage, { color: string; bg: string; border: string }> = {
-  "ליד חדש":          { color: "#64748b", bg: "#64748b12", border: "#64748b40" },
-  "שיחת סינון":       { color: "#3b82f6", bg: "#3b82f612", border: "#3b82f640" },
-  "פגישת אסטרטגיה":  { color: "#8b5cf6", bg: "#8b5cf612", border: "#8b5cf640" },
-  "לקוח פעיל":        { color: "#10b981", bg: "#10b98112", border: "#10b98140" },
-  "Upsell":           { color: "#f59e0b", bg: "#f59e0b12", border: "#f59e0b40" },
-  "נסגר":             { color: "#ef4444", bg: "#ef444412", border: "#ef444440" },
-};
+// Colors assigned by position — stable regardless of stage name
+const STAGE_COLORS = [
+  { color: "#64748b", bg: "#64748b12", border: "#64748b40" },
+  { color: "#3b82f6", bg: "#3b82f612", border: "#3b82f640" },
+  { color: "#8b5cf6", bg: "#8b5cf612", border: "#8b5cf640" },
+  { color: "#f59e0b", bg: "#f59e0b12", border: "#f59e0b40" },
+  { color: "#ef4444", bg: "#ef444412", border: "#ef444440" },
+  { color: "#06b6d4", bg: "#06b6d412", border: "#06b6d440" },
+  { color: "#10b981", bg: "#10b98112", border: "#10b98140" },
+  { color: "#ec4899", bg: "#ec489912", border: "#ec489940" },
+];
+
+function stageColor(idx: number) {
+  return STAGE_COLORS[idx % STAGE_COLORS.length];
+}
 
 const SOURCES = ["ידני", "מטא", "אורגני", "פרסום", "הפניה", "אחר"];
 const TEAM_MEMBERS = ["ענב", "אוריאל", "דניאל"];
 
 const EMPTY_FORM = {
   name: "", phone: "", email: "", business_name: "",
-  source: "ידני", stage: "ליד חדש" as Stage, assigned_to: "", notes: "",
+  source: "ידני", stage: DEFAULT_STAGES[0], assigned_to: "", notes: "",
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -114,6 +114,9 @@ function CRMPage() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [stages, setStages] = useState<string[]>(DEFAULT_STAGES);
+  const [showStages, setShowStages] = useState(false);
+  const [settingsId, setSettingsId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isAdmin()) { navigate({ to: "/login" }); return; }
@@ -122,12 +125,16 @@ function CRMPage() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase
-      .from("contacts")
-      .select("*")
-      .neq("stage", "לקוח פעיל")
-      .order("created_at", { ascending: false });
-    setContacts((data ?? []) as Contact[]);
+    const [contactsRes, settingsRes] = await Promise.all([
+      supabase.from("contacts").select("*").neq("stage", CLIENT_STAGE).order("created_at", { ascending: false }),
+      supabase.from("app_settings").select("id,lead_stages").limit(1).single(),
+    ]);
+    setContacts((contactsRes.data ?? []) as Contact[]);
+    if (settingsRes.data) {
+      setSettingsId(settingsRes.data.id);
+      const ls = settingsRes.data.lead_stages;
+      if (Array.isArray(ls) && ls.length > 0) setStages(ls as string[]);
+    }
     setLoading(false);
   }
 
@@ -147,14 +154,14 @@ function CRMPage() {
 
   const grouped = useMemo(() => {
     const map: Record<string, Contact[]> = {};
-    STAGES.forEach(s => { map[s] = []; });
+    stages.forEach(s => { map[s] = []; });
     filtered.forEach(c => {
-      if (c.stage === "לקוח פעיל") return; // clients are in /clients
+      if (c.stage === CLIENT_STAGE) return;
       if (map[c.stage]) map[c.stage].push(c);
-      else map["ליד חדש"].push(c);
+      else map[stages[0]]?.push(c); // orphan → first stage
     });
     return map;
-  }, [filtered]);
+  }, [filtered, stages]);
 
   async function saveNew() {
     if (!form.name.trim()) { toast.error("חובה שם"); return; }
@@ -234,8 +241,6 @@ function CRMPage() {
     </AppShell>
   );
 
-  const nonClientStages = STAGES.filter(s => s !== "לקוח פעיל");
-
   return (
     <AppShell>
       <Toaster position="top-center" dir="rtl" />
@@ -258,6 +263,10 @@ function CRMPage() {
                 </button>
               )}
             </div>
+            <Button size="sm" variant="ghost" className="cursor-pointer h-9 gap-1.5"
+              onClick={() => setShowStages(true)}>
+              <Settings2 className="h-4 w-4" /> שלבים
+            </Button>
             <Button size="sm" className="cursor-pointer h-9 gap-1.5"
               onClick={() => { setForm({ ...EMPTY_FORM }); setEditContact(null); setShowAdd(true); }}>
               <Plus className="h-4 w-4" /> ליד חדש
@@ -267,8 +276,8 @@ function CRMPage() {
 
         {/* Stage stats */}
         <div className="mt-3 flex items-center gap-4 overflow-x-auto">
-          {nonClientStages.map(s => {
-            const m = STAGE_META[s];
+          {stages.map((s, idx) => {
+            const m = stageColor(idx);
             const count = grouped[s]?.length ?? 0;
             return (
               <div key={s} className="flex items-center gap-1.5 whitespace-nowrap">
@@ -288,8 +297,8 @@ function CRMPage() {
         {/* Kanban board */}
         <div className={cn("flex-1 overflow-x-auto px-4 py-5 transition-all", selectedId && "hidden lg:block lg:w-[calc(100%-480px)]")}>
           <div className="flex gap-3">
-            {nonClientStages.map(stage => {
-              const m = STAGE_META[stage];
+            {stages.map((stage, idx) => {
+              const m = stageColor(idx);
               const cards = grouped[stage] ?? [];
               const isOver = dragOver === stage;
               return (
@@ -378,6 +387,7 @@ function CRMPage() {
         {selectedId && selected && (
           <LeadDetail
             contact={selected}
+            stages={stages}
             onClose={() => setSelectedId(null)}
             onSaveField={(patch) => saveField(selected.id, patch)}
             onMoveStage={(stage) => moveStage(selected.id, stage)}
@@ -387,7 +397,7 @@ function CRMPage() {
               setForm({
                 name: selected.name, phone: selected.phone ?? "",
                 email: selected.email ?? "", business_name: selected.business_name ?? "",
-                source: selected.source, stage: selected.stage as Stage,
+                source: selected.source, stage: selected.stage,
                 assigned_to: selected.assigned_to ?? "", notes: selected.notes ?? "",
               });
               setEditContact(selected);
@@ -397,6 +407,15 @@ function CRMPage() {
           />
         )}
       </div>
+
+      {/* ── Stages settings dialog ────────────────────────────── */}
+      <StagesDialog
+        open={showStages}
+        stages={stages}
+        settingsId={settingsId}
+        onClose={() => setShowStages(false)}
+        onSave={newStages => { setStages(newStages); void load(); }}
+      />
 
       {/* ── Add / Edit dialog ──────────────────────────────────── */}
       <Dialog open={showAdd} onOpenChange={o => { if (!o) { setShowAdd(false); setEditContact(null); } }}>
@@ -435,9 +454,9 @@ function CRMPage() {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">שלב</label>
-                <Select value={form.stage} onValueChange={v => setForm({ ...form, stage: v as Stage })}>
+                <Select value={form.stage} onValueChange={v => setForm({ ...form, stage: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{nonClientStages.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  <SelectContent>{stages.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
@@ -471,8 +490,9 @@ function CRMPage() {
 
 // ─── Lead detail panel ────────────────────────────────────────────────────────
 
-function LeadDetail({ contact, onClose, onSaveField, onMoveStage, onConvert, onDelete, onEditBasic, converting }: {
+function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConvert, onDelete, onEditBasic, converting }: {
   contact: Contact;
+  stages: string[];
   onClose: () => void;
   onSaveField: (patch: Partial<Contact>) => Promise<void>;
   onMoveStage: (stage: string) => void;
@@ -518,8 +538,8 @@ function LeadDetail({ contact, onClose, onSaveField, onMoveStage, onConvert, onD
     );
   }
 
-  const stageMeta = STAGE_META[contact.stage as Stage] ?? STAGE_META["ליד חדש"];
-  const nonClientStages = STAGES.filter(s => s !== "לקוח פעיל");
+  const stageIdx = stages.indexOf(contact.stage);
+  const stageMeta = stageColor(stageIdx >= 0 ? stageIdx : 0);
 
   return (
     <div
@@ -578,10 +598,10 @@ function LeadDetail({ contact, onClose, onSaveField, onMoveStage, onConvert, onD
         {/* Pipeline stepper */}
         <div className="shrink-0 border-b border-border px-5 py-3">
           <div className="flex items-center gap-1 overflow-x-auto">
-            {nonClientStages.map((s, i) => {
-              const m = STAGE_META[s];
+            {stages.map((s, i) => {
+              const m = stageColor(i);
               const isActive = contact.stage === s;
-              const isPast = nonClientStages.indexOf(contact.stage as typeof nonClientStages[number]) > i;
+              const isPast = stages.indexOf(contact.stage) > i;
               return (
                 <div key={s} className="flex items-center gap-1">
                   {i > 0 && <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/30" />}
@@ -720,6 +740,96 @@ function LeadDetail({ contact, onClose, onSaveField, onMoveStage, onConvert, onD
     </div>
   );
 }
+
+// ─── Stages dialog ────────────────────────────────────────────────────────────
+
+function StagesDialog({ open, stages, settingsId, onClose, onSave }: {
+  open: boolean;
+  stages: string[];
+  settingsId: number | null;
+  onClose: () => void;
+  onSave: (newStages: string[]) => void;
+}) {
+  const [draft, setDraft] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (open) setDraft([...stages]); }, [open, stages]);
+
+  function rename(i: number, v: string) { setDraft(d => d.map((s, j) => j === i ? v : s)); }
+  function moveUp(i: number) { if (i === 0) return; setDraft(d => { const a = [...d]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; }); }
+  function moveDown(i: number) { if (i === draft.length - 1) return; setDraft(d => { const a = [...d]; [a[i], a[i + 1]] = [a[i + 1], a[i]]; return a; }); }
+  function remove(i: number) { if (draft.length <= 1) return; setDraft(d => d.filter((_, j) => j !== i)); }
+
+  async function save() {
+    const cleaned = draft.map(s => s.trim()).filter(Boolean);
+    if (cleaned.length === 0) return;
+    setSaving(true);
+    // Rename contacts whose stage name changed
+    for (let i = 0; i < stages.length; i++) {
+      const oldName = stages[i];
+      const newName = cleaned[i];
+      if (newName && oldName !== newName) {
+        await supabase.from("contacts").update({ stage: newName, updated_at: new Date().toISOString() }).eq("stage", oldName);
+      }
+    }
+    // Persist to app_settings
+    if (settingsId !== null) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("app_settings") as any).update({ lead_stages: cleaned }).eq("id", settingsId);
+    }
+    setSaving(false);
+    onSave(cleaned);
+    onClose();
+    toast.success("שלבים עודכנו");
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-sm" dir="rtl">
+        <DialogHeader>
+          <DialogTitle>עריכת שלבי לידים</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2">
+          {draft.map((s, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: stageColor(i).color }} />
+              <Input
+                value={s}
+                onChange={e => rename(i, e.target.value)}
+                className="h-8 flex-1 text-sm"
+              />
+              <button onClick={() => moveUp(i)} disabled={i === 0}
+                className="cursor-pointer h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:bg-muted disabled:opacity-30 transition-colors">
+                <ArrowUp className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={() => moveDown(i)} disabled={i === draft.length - 1}
+                className="cursor-pointer h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:bg-muted disabled:opacity-30 transition-colors">
+                <ArrowDown className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={() => remove(i)} disabled={draft.length <= 1}
+                className="cursor-pointer h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:bg-red-50 hover:text-red-500 disabled:opacity-30 transition-colors">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" className="cursor-pointer gap-1.5 w-full mt-1"
+          onClick={() => setDraft(d => [...d, "שלב חדש"])}>
+          <Plus className="h-3.5 w-3.5" /> הוסף שלב
+        </Button>
+        <DialogFooter>
+          <Button variant="outline" className="cursor-pointer" onClick={onClose}>ביטול</Button>
+          <Button className="cursor-pointer" onClick={save} disabled={saving}>
+            {saving && <Loader2 className="ms-2 h-4 w-4 animate-spin" />}
+            שמור
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Section title ─────────────────────────────────────────────────────────────
 
 function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
