@@ -17,8 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   Plus, Calendar, Loader2, X, Trash2,
   CheckCircle2, Clock, Circle, FileText,
-  Video, ExternalLink, ChevronLeft, Camera,
-  Pencil,
+  Video, ExternalLink, ChevronLeft, Camera, Pencil,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 
@@ -74,30 +73,46 @@ function todayStr() { return new Date().toISOString().slice(0, 10); }
 function shootDayKind(sd: ShootDay): "upcoming" | "today" | "done" | "pending" {
   if (!sd.shoot_date) return "pending";
   const t = todayStr();
-  if (sd.shoot_date > t)  return "upcoming";
+  if (sd.shoot_date > t)   return "upcoming";
   if (sd.shoot_date === t) return "today";
   return sd.status === "הושלם" ? "done" : "pending";
 }
 
 const KIND_STYLE = {
-  upcoming: { border: "#3b82f6", bg: "#3b82f608", label: "מתוכנן",  lBg: "#3b82f615", lColor: "#2563eb" },
-  today:    { border: "#f59e0b", bg: "#f59e0b08", label: "היום!",   lBg: "#fef3c7",   lColor: "#d97706" },
-  done:     { border: "#10b981", bg: "#10b98108", label: "הושלם",   lBg: "#10b98115", lColor: "#059669" },
-  pending:  { border: "#ef4444", bg: "#ef444408", label: "לא הושלם",lBg: "#ef444415", lColor: "#dc2626" },
+  upcoming: { border: "#3b82f6", lBg: "#dbeafe", lColor: "#2563eb", label: "מתוכנן"  },
+  today:    { border: "#f59e0b", lBg: "#fef3c7", lColor: "#d97706", label: "היום!"   },
+  done:     { border: "#10b981", lBg: "#d1fae5", lColor: "#059669", label: "הושלם"   },
+  pending:  { border: "#ef4444", lBg: "#fee2e2", lColor: "#dc2626", label: "לא הושלם"},
 };
+
+const HE_MONTHS = [
+  "ינואר","פברואר","מרץ","אפריל","מאי","יוני",
+  "יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר",
+];
+
+function monthLabel(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  return `${HE_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function monthKey(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function ContentPage() {
   const navigate = useNavigate();
-  const [shootDays, setShootDays]   = useState<ShootDay[]>([]);
-  const [contacts,  setContacts]    = useState<Contact[]>([]);
-  const [loading,   setLoading]     = useState(true);
-  const [showAdd,   setShowAdd]     = useState(false);
-  const [saving,    setSaving]      = useState(false);
+  const [shootDays,  setShootDays]  = useState<ShootDay[]>([]);
+  const [contacts,   setContacts]   = useState<Contact[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [saving,     setSaving]     = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filter, setFilter]         = useState<"הכל" | "מתוכנן" | "הושלם">("הכל");
-  const [addForm, setAddForm]       = useState({ contact_id: "", shoot_date: todayStr() });
+  const [filter,     setFilter]     = useState<"הכל" | "מתוכנן" | "הושלם">("הכל");
+  const [briefModal, setBriefModal] = useState<{ text: string; clientName: string } | null>(null);
+  const [addForm,    setAddForm]    = useState({ contact_id: "", shoot_date: todayStr() });
 
   useEffect(() => {
     if (!isAdmin()) { navigate({ to: "/login" }); return; }
@@ -131,6 +146,7 @@ function ContentPage() {
     [shootDays, selectedId]
   );
 
+  // Sort: upcoming/today first (ascending), then past (descending)
   const filtered = useMemo(() => {
     let list = [...shootDays];
     if (filter === "מתוכנן") list = list.filter(d => d.status === "מתוכנן");
@@ -140,21 +156,32 @@ function ContentPage() {
       const aFut = (a.shoot_date ?? "") >= t;
       const bFut = (b.shoot_date ?? "") >= t;
       if (aFut && !bFut) return -1;
-      if (!aFut && bFut)  return 1;
+      if (!aFut && bFut) return 1;
       if (aFut) return (a.shoot_date ?? "").localeCompare(b.shoot_date ?? "");
       return (b.shoot_date ?? "").localeCompare(a.shoot_date ?? "");
     });
   }, [shootDays, filter]);
 
+  // Group by calendar month, preserving sort order
+  const monthGroups = useMemo(() => {
+    const groups: { key: string; label: string; items: ShootDay[] }[] = [];
+    for (const d of filtered) {
+      const key   = d.shoot_date ? monthKey(d.shoot_date) : "no-date";
+      const label = d.shoot_date ? monthLabel(d.shoot_date) : "ללא תאריך";
+      const existing = groups.find(g => g.key === key);
+      if (existing) existing.items.push(d);
+      else groups.push({ key, label, items: [d] });
+    }
+    return groups;
+  }, [filtered]);
+
   const stats = useMemo(() => {
     const t = todayStr();
-    const upcoming = shootDays.filter(d => (d.shoot_date ?? "") >= t).length;
     const allV = shootDays.flatMap(d => d.videos);
     return {
-      upcoming,
+      upcoming:   shootDays.filter(d => (d.shoot_date ?? "") >= t).length,
       editing:    allV.filter(v => v.edit_status === "בעריכה").length,
       done:       allV.filter(v => v.edit_status === "הושלם").length,
-      notStarted: allV.filter(v => v.edit_status === "לא התחיל").length,
     };
   }, [shootDays]);
 
@@ -162,11 +189,10 @@ function ContentPage() {
     if (!addForm.contact_id) { toast.error("חובה לבחור לקוח"); return; }
     setSaving(true);
     const { data, error } = await supabase.from("shoot_days").insert({
-      contact_id:     addForm.contact_id,
-      shoot_date:     addForm.shoot_date || null,
-      status:         "מתוכנן",
-      creative_brief: null,
-      updated_at:     new Date().toISOString(),
+      contact_id: addForm.contact_id,
+      shoot_date: addForm.shoot_date || null,
+      status: "מתוכנן",
+      updated_at: new Date().toISOString(),
     }).select().single();
     setSaving(false);
     if (error) { toast.error(error.message); return; }
@@ -195,10 +221,10 @@ function ContentPage() {
     const pos = shootDays.find(d => d.id === dayId)?.videos.length ?? 0;
     const { data, error } = await supabase.from("shoot_videos").insert({
       shoot_day_id: dayId,
-      title:        "סרטון חדש",
+      title: "סרטון חדש",
       content_type: "רילס",
-      edit_status:  "לא התחיל",
-      position:     pos,
+      edit_status: "לא התחיל",
+      position: pos,
     }).select().single();
     if (error) { toast.error(error.message); return; }
     setShootDays(prev => prev.map(d =>
@@ -290,15 +316,33 @@ function ContentPage() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {filtered.map(sd => (
-                <ShootDayCard
-                  key={sd.id}
-                  shootDay={sd}
-                  contact={sd.contact_id ? (contactMap[sd.contact_id] ?? null) : null}
-                  isSelected={selectedId === sd.id}
-                  onClick={() => setSelectedId(selectedId === sd.id ? null : sd.id)}
-                />
+            <div className="space-y-6">
+              {monthGroups.map(group => (
+                <div key={group.key}>
+                  {/* Month header */}
+                  <div className="mb-2.5 flex items-center gap-3">
+                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      {group.label}
+                    </span>
+                    <div className="flex-1 border-t border-border" />
+                    <span className="text-[11px] text-muted-foreground/60">
+                      {group.items.length} ימים
+                    </span>
+                  </div>
+                  {/* Cards in this month */}
+                  <div className="space-y-2.5">
+                    {group.items.map(sd => (
+                      <ShootDayCard
+                        key={sd.id}
+                        shootDay={sd}
+                        contact={sd.contact_id ? (contactMap[sd.contact_id] ?? null) : null}
+                        isSelected={selectedId === sd.id}
+                        onClick={() => setSelectedId(selectedId === sd.id ? null : sd.id)}
+                        onBriefClick={(text, name) => setBriefModal({ text, clientName: name })}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -356,17 +400,41 @@ function ContentPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Brief modal ──────────────────────────────────────────── */}
+      <Dialog open={briefModal !== null} onOpenChange={o => { if (!o) setBriefModal(null); }}>
+        <DialogContent className="max-w-lg" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              קריאייטיב בריף
+              {briefModal?.clientName && (
+                <span className="text-sm font-normal text-muted-foreground">— {briefModal.clientName}</span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-muted/40 p-4">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+              {briefModal?.text}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="cursor-pointer" onClick={() => setBriefModal(null)}>סגור</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
 
 // ─── Shoot day card ────────────────────────────────────────────────────────────
 
-function ShootDayCard({ shootDay, contact, isSelected, onClick }: {
+function ShootDayCard({ shootDay, contact, isSelected, onClick, onBriefClick }: {
   shootDay: ShootDay;
   contact: Contact | null;
   isSelected: boolean;
   onClick: () => void;
+  onBriefClick: (text: string, clientName: string) => void;
 }) {
   const kind  = shootDayKind(shootDay);
   const style = KIND_STYLE[kind];
@@ -375,89 +443,94 @@ function ShootDayCard({ shootDay, contact, isSelected, onClick }: {
   const editing    = vids.filter(v => v.edit_status === "בעריכה").length;
   const done       = vids.filter(v => v.edit_status === "הושלם").length;
 
+  const dayNum = shootDay.shoot_date
+    ? new Date(shootDay.shoot_date + "T12:00:00").getDate()
+    : null;
+
   return (
     <div
       onClick={onClick}
       className={cn(
-        "cursor-pointer rounded-2xl border bg-card p-4 transition-all hover:shadow-md hover:-translate-y-[1px]",
+        "cursor-pointer rounded-2xl border bg-card transition-all hover:shadow-md hover:-translate-y-[1px] overflow-hidden",
         isSelected ? "border-transparent" : "border-border"
       )}
       style={{
         borderRightWidth: 3,
         borderRightColor: style.border,
-        background: isSelected ? style.bg : undefined,
         ...(isSelected ? { boxShadow: `0 0 0 2px ${style.border}35` } : {}),
       }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          {/* Client + status badge */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-bold text-foreground">
-              {contact?.name ?? "—"}
-              {contact?.business_name ? (
-                <span className="font-normal text-muted-foreground"> · {contact.business_name}</span>
-              ) : null}
+      <div className="flex items-center gap-3 px-3 py-3">
+        {/* Day number — prominent, right side (RTL start) */}
+        <div
+          className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl"
+          style={{ background: style.lBg }}
+        >
+          {dayNum !== null ? (
+            <span className="text-2xl font-black leading-none tabular-nums" style={{ color: style.lColor }}>
+              {dayNum}
             </span>
+          ) : (
+            <Calendar className="h-5 w-5" style={{ color: style.lColor }} />
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-sm font-bold text-foreground leading-snug">
+              {contact?.name ?? "—"}
+            </span>
+            {contact?.business_name && (
+              <span className="text-xs text-muted-foreground">· {contact.business_name}</span>
+            )}
             <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
               style={{ background: style.lBg, color: style.lColor }}>
               {style.label}
             </span>
           </div>
 
-          {/* Date */}
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Calendar className="h-3 w-3 shrink-0" />
-            {shootDay.shoot_date
-              ? new Date(shootDay.shoot_date + "T12:00:00").toLocaleDateString("he-IL", {
-                  weekday: "long", day: "numeric", month: "long", year: "numeric",
-                })
-              : "תאריך לא נקבע"}
-          </div>
-
-          {/* Creative brief preview */}
-          {shootDay.creative_brief && (
-            <p className="mt-1.5 line-clamp-1 text-[11px] text-muted-foreground">
-              <FileText className="inline h-3 w-3 me-1 opacity-50" />
-              {shootDay.creative_brief}
-            </p>
+          {/* Brief button — only if brief exists */}
+          {shootDay.creative_brief ? (
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                onBriefClick(shootDay.creative_brief!, contact?.name ?? "");
+              }}
+              className="cursor-pointer mt-1 flex items-center gap-1 text-[11px] text-primary hover:underline"
+            >
+              <FileText className="h-3 w-3 shrink-0" />
+              קריאייטיב בריף
+            </button>
+          ) : (
+            <span className="mt-1 block text-[11px] text-muted-foreground/40">אין בריף עדיין</span>
           )}
         </div>
 
         <ChevronLeft className={cn(
-          "mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/40 transition-transform",
+          "h-4 w-4 shrink-0 text-muted-foreground/40 transition-transform",
           isSelected && "rotate-90"
         )} />
       </div>
 
-      {/* Video stats */}
-      <div className="mt-3 flex items-center gap-2">
-        <Video className="h-3 w-3 shrink-0 text-muted-foreground/30" />
-        {vids.length === 0 ? (
-          <span className="text-[11px] text-muted-foreground/40">אין סרטונים עדיין</span>
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-1.5">
-              {notStarted > 0 && (
-                <VideoPill count={notStarted} status="לא התחיל" />
-              )}
-              {editing > 0 && (
-                <VideoPill count={editing} status="בעריכה" />
-              )}
-              {done > 0 && (
-                <VideoPill count={done} status="הושלם" />
-              )}
+      {/* Video stats strip */}
+      {vids.length > 0 && (
+        <div className="flex items-center gap-2 border-t border-border/50 bg-muted/20 px-3 py-2">
+          <Video className="h-3 w-3 shrink-0 text-muted-foreground/30" />
+          <div className="flex flex-wrap gap-1.5">
+            {notStarted > 0 && <VideoPill count={notStarted} status="לא התחיל" />}
+            {editing > 0    && <VideoPill count={editing}    status="בעריכה"   />}
+            {done > 0       && <VideoPill count={done}       status="הושלם"    />}
+          </div>
+          <div className="ms-auto flex items-center gap-1.5 shrink-0">
+            <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-green-500 transition-all"
+                style={{ width: `${(done / vids.length) * 100}%` }} />
             </div>
-            <div className="ms-auto flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
-              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-green-500 transition-all"
-                  style={{ width: `${(done / vids.length) * 100}%` }} />
-              </div>
-              <span className="tabular-nums">{done}/{vids.length}</span>
-            </div>
-          </>
-        )}
-      </div>
+            <span className="text-[10px] tabular-nums text-muted-foreground">{done}/{vids.length}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -633,17 +706,11 @@ function VideoRow({ video, onSave, onDelete }: {
   const m   = EDIT_META[video.edit_status as EditStatus] ?? EDIT_META["לא התחיל"];
   const idx = EDIT_STATUSES.indexOf(video.edit_status as EditStatus);
 
-  function cycleStatus() {
-    const next = EDIT_STATUSES[(idx + 1) % EDIT_STATUSES.length];
-    onSave({ edit_status: next });
-  }
-
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden transition-all hover:shadow-sm">
-      {/* Main row */}
       <div className="group flex items-center gap-2 px-3 py-2.5">
         {/* Status cycle */}
-        <button onClick={cycleStatus}
+        <button onClick={() => onSave({ edit_status: EDIT_STATUSES[(idx + 1) % EDIT_STATUSES.length] })}
           title={video.edit_status}
           className="cursor-pointer shrink-0 rounded-full p-1 transition-colors hover:bg-muted"
           style={{ color: m.color }}>
@@ -652,7 +719,7 @@ function VideoRow({ video, onSave, onDelete }: {
           {video.edit_status === "הושלם"    && <CheckCircle2 className="h-4 w-4" />}
         </button>
 
-        {/* Title inline edit */}
+        {/* Title */}
         <input
           value={title}
           onChange={e => setTitle(e.target.value)}
@@ -661,7 +728,7 @@ function VideoRow({ video, onSave, onDelete }: {
           placeholder="שם הסרטון"
         />
 
-        {/* Type select */}
+        {/* Type */}
         <Select value={video.content_type} onValueChange={v => onSave({ content_type: v })}>
           <SelectTrigger className="h-6 w-[68px] shrink-0 border-0 bg-muted/60 px-1.5 text-[10px] cursor-pointer">
             <SelectValue />
@@ -677,7 +744,6 @@ function VideoRow({ video, onSave, onDelete }: {
           {video.edit_status}
         </span>
 
-        {/* Drive link quick icon */}
         {video.drive_link && (
           <a href={video.drive_link} target="_blank" rel="noopener noreferrer"
             className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
@@ -686,58 +752,44 @@ function VideoRow({ video, onSave, onDelete }: {
           </a>
         )}
 
-        {/* Expand */}
         <button onClick={() => setExpanded(!expanded)}
           className={cn(
-            "cursor-pointer shrink-0 rounded p-1 text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+            "cursor-pointer shrink-0 rounded p-1 text-muted-foreground transition-all hover:bg-muted",
             expanded && "bg-muted text-foreground"
           )}>
           <Pencil className="h-3 w-3" />
         </button>
 
-        {/* Delete */}
         <button onClick={onDelete}
           className="cursor-pointer shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100">
           <X className="h-3 w-3" />
         </button>
       </div>
 
-      {/* Expanded fields */}
       {expanded && (
         <div className="border-t border-border bg-muted/30 px-3 pb-3 pt-2.5 space-y-2.5">
           <div className="flex items-center gap-2">
-            <label className="w-14 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              Drive
-            </label>
+            <label className="w-14 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">Drive</label>
             <input
-              type="url"
+              type="url" dir="ltr"
               value={link}
-              dir="ltr"
               onChange={e => setLink(e.target.value)}
-              onBlur={() => {
-                const v = link.trim() || null;
-                if (v !== video.drive_link) onSave({ drive_link: v });
-              }}
+              onBlur={() => { const v = link.trim() || null; if (v !== video.drive_link) onSave({ drive_link: v }); }}
               placeholder="https://drive.google.com/..."
               className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40"
             />
             {link && (
               <a href={link} target="_blank" rel="noopener noreferrer"
-                className="shrink-0 text-muted-foreground hover:text-primary transition-colors">
+                className="shrink-0 text-muted-foreground hover:text-primary">
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <label className="w-14 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              עורך
-            </label>
-            <Select
-              value={video.assigned_editor ?? "__none__"}
+            <label className="w-14 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">עורך</label>
+            <Select value={video.assigned_editor ?? "__none__"}
               onValueChange={v => onSave({ assigned_editor: v === "__none__" ? null : v })}>
-              <SelectTrigger className="h-7 flex-1 cursor-pointer text-xs">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
+              <SelectTrigger className="h-7 flex-1 cursor-pointer text-xs"><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">—</SelectItem>
                 {TEAM_MEMBERS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
