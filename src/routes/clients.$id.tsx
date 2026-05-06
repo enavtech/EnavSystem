@@ -11,6 +11,7 @@ import {
   Phone, Mail, Building2, CalendarDays, ChevronRight, Loader2,
   Pencil, Save, X, ExternalLink, CheckSquare, Square, Film, Target,
   Globe, MapPin, Users, Instagram, Facebook, DollarSign, FileText,
+  Camera, Video, Circle, Clock, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,21 +29,12 @@ type ClientFull = {
   initial_revenue: string | null; industry: string | null;
   business_goals: string | null; client_status: string | null;
   client_since: string | null;
-  // new fields
-  service_type: string | null;
-  id_number: string | null;
-  website: string | null;
-  employees_count: number | null;
-  contract_signed_date: string | null;
-  contract_end_date: string | null;
-  monthly_fee: string | null;
-  monthly_ad_budget: string | null;
-  business_type: string | null;
-  tax_id: string | null;
-  city: string | null;
-  instagram_handle: string | null;
-  facebook_url: string | null;
-  tiktok_handle: string | null;
+  service_type: string | null; id_number: string | null;
+  website: string | null; employees_count: number | null;
+  contract_signed_date: string | null; contract_end_date: string | null;
+  monthly_fee: string | null; monthly_ad_budget: string | null;
+  business_type: string | null; tax_id: string | null; city: string | null;
+  instagram_handle: string | null; facebook_url: string | null; tiktok_handle: string | null;
 };
 
 type ActionItem = { id: string; text: string; done: boolean };
@@ -56,17 +48,26 @@ type MeetingRow = {
 
 type PlanInfo = { id: string; name: string; slug: string; accent_color: string | null };
 
-type ContentItem = {
-  id: string; title: string; content_type: string; status: string;
-  due_date: string | null; assigned_editor: string | null;
-};
-
 type TaskRow = {
   id: string; title: string; status: string; priority: string; deadline: string | null;
 };
 
 type InternalTask = {
   id: string; title: string; status: string; priority: string; due_date: string | null;
+};
+
+type ShootVideo = {
+  id: string; shoot_day_id: string; title: string;
+  content_type: string; edit_status: string;
+  assigned_editor: string | null; drive_link: string | null;
+  position: number;
+};
+
+type ShootDay = {
+  id: string; contact_id: string | null;
+  shoot_date: string | null; creative_brief: string | null;
+  status: string; created_at: string; updated_at: string;
+  videos: ShootVideo[];
 };
 
 type Tab = "overview" | "meetings" | "plans" | "content" | "tasks";
@@ -85,6 +86,19 @@ const MTG_TYPE: Record<string, string> = {
   "תוכן": "תוכן", "שבועית": "שבועית",
 };
 
+const EDIT_META: Record<string, { color: string; bg: string }> = {
+  "לא התחיל": { color: "#64748b", bg: "#64748b12" },
+  "בעריכה":   { color: "#3b82f6", bg: "#3b82f612" },
+  "הושלם":    { color: "#10b981", bg: "#10b98112" },
+};
+
+const SHOOT_KIND_STYLE = {
+  upcoming: { border: "#3b82f6", dayBg: "#f8fafc", dayColor: "#0f172a", lBg: "#eff6ff", lColor: "#1d4ed8", label: "מתוכנן"   },
+  today:    { border: "#0f172a", dayBg: "#0f172a", dayColor: "#ffffff", lBg: "#0f172a", lColor: "#ffffff", label: "היום!"    },
+  done:     { border: "#cbd5e1", dayBg: "#f8fafc", dayColor: "#94a3b8", lBg: "#f1f5f9", lColor: "#475569", label: "הושלם"    },
+  pending:  { border: "#f87171", dayBg: "#f8fafc", dayColor: "#0f172a", lBg: "#fff1f2", lColor: "#be123c", label: "לא הושלם" },
+};
+
 const AVATAR_COLORS = [
   "oklch(0.60 0.20 250)", "oklch(0.62 0.17 149)", "oklch(0.54 0.20 285)",
   "oklch(0.68 0.17 78)",  "oklch(0.60 0.22 25)",  "oklch(0.56 0.19 192)",
@@ -101,14 +115,23 @@ function avatarColor(name: string) {
   return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
 }
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
+  return new Date(d + (d.length === 10 ? "T12:00:00" : "")).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
 }
 function fmtShort(d: string) {
-  const date = new Date(d);
+  const date = new Date(d + (d.length === 10 ? "T12:00:00" : ""));
   const today = new Date(); today.setHours(0, 0, 0, 0);
   if (date.toDateString() === today.toDateString()) return "היום";
   if (date.toDateString() === new Date(today.getTime() + 86400000).toDateString()) return "מחר";
   return date.toLocaleDateString("he-IL", { day: "numeric", month: "short" });
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+function shootDayKind(sd: ShootDay): keyof typeof SHOOT_KIND_STYLE {
+  if (!sd.shoot_date) return "pending";
+  const t = todayStr();
+  if (sd.shoot_date > t)   return "upcoming";
+  if (sd.shoot_date === t) return "today";
+  return sd.status === "הושלם" ? "done" : "pending";
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -117,19 +140,21 @@ function ClientProfile() {
   const navigate = useNavigate();
   const { id } = Route.useParams();
 
-  const [client, setClient] = useState<ClientFull | null>(null);
-  const [meetings, setMeetings] = useState<MeetingRow[]>([]);
-  const [plan, setPlan] = useState<PlanInfo | null>(null);
-  const [planTasks, setPlanTasks] = useState<TaskRow[]>([]);
-  const [content, setContent] = useState<ContentItem[]>([]);
+  const [client,        setClient]        = useState<ClientFull | null>(null);
+  const [meetings,      setMeetings]      = useState<MeetingRow[]>([]);
+  const [plan,          setPlan]          = useState<PlanInfo | null>(null);
+  const [planTasks,     setPlanTasks]     = useState<TaskRow[]>([]);
+  const [shootDays,     setShootDays]     = useState<ShootDay[]>([]);
   const [internalTasks, setInternalTasks] = useState<InternalTask[]>([]);
-  const [tab, setTab] = useState<Tab>("overview");
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<ClientFull>>({});
-  const [saving, setSaving] = useState(false);
-  const [expandedMeeting, setExpandedMeeting] = useState<string | null>(null);
-  const [meetingNotes, setMeetingNotes] = useState<Record<string, string>>({});
+  const [tab,           setTab]           = useState<Tab>("overview");
+  const [loading,       setLoading]       = useState(true);
+  const [editing,       setEditing]       = useState(false);
+  const [editForm,      setEditForm]      = useState<Partial<ClientFull>>({});
+  const [saving,        setSaving]        = useState(false);
+  const [expandedMeeting,  setExpandedMeeting]  = useState<string | null>(null);
+  const [expandedShootDay, setExpandedShootDay] = useState<string | null>(null);
+  const [meetingNotes, setMeetingNotes]   = useState<Record<string, string>>({});
+  const [briefModal,   setBriefModal]     = useState<string | null>(null);
 
   useEffect(() => { void load(); }, [id]);
 
@@ -137,31 +162,20 @@ function ClientProfile() {
     setLoading(true);
 
     const { data: clientData, error: clientError } = await supabase
-      .from("contacts")
-      .select("*")
-      .eq("id", id)
-      .single();
+      .from("contacts").select("*").eq("id", id).single();
 
-    if (clientError || !clientData) {
-      setLoading(false);
-      return;
-    }
+    if (clientError || !clientData) { setLoading(false); return; }
 
     const c = clientData as unknown as ClientFull;
     setClient(c);
     setEditForm(c);
 
-    const [mtgsRes, contentRes] = await Promise.all([
-      supabase
-        .from("meetings")
-        .select("*")
-        .eq("contact_id", id)
+    const [mtgsRes, sdRes, vidRes] = await Promise.all([
+      supabase.from("meetings").select("*").eq("contact_id", id)
         .order("meeting_date", { ascending: false }),
-      supabase
-        .from("content_items")
-        .select("id,title,content_type,status,due_date,assigned_editor")
-        .eq("contact_id", id)
-        .order("created_at", { ascending: false }),
+      supabase.from("shoot_days").select("*").eq("contact_id", id)
+        .order("shoot_date", { ascending: false, nullsFirst: false }),
+      supabase.from("shoot_videos").select("*").order("position"),
     ]);
 
     if (mtgsRes.data) {
@@ -177,29 +191,24 @@ function ClientProfile() {
       setMeetingNotes(notesMap);
     }
 
-    if (contentRes.data) setContent(contentRes.data as unknown as ContentItem[]);
+    if (sdRes.data) {
+      const days = sdRes.data as Omit<ShootDay, "videos">[];
+      const vids = (vidRes.data ?? []) as ShootVideo[];
+      const vidMap: Record<string, ShootVideo[]> = {};
+      vids.forEach(v => { (vidMap[v.shoot_day_id] ??= []).push(v); });
+      setShootDays(days.map(d => ({ ...d, videos: vidMap[d.id] ?? [] })));
+    }
 
     if (c.plan_id) {
       const { data: planData } = await supabase
-        .from("plans")
-        .select("id,name,slug,accent_color")
-        .eq("id", c.plan_id)
-        .single();
+        .from("plans").select("id,name,slug,accent_color").eq("id", c.plan_id).single();
 
       if (planData) {
         const p = planData as unknown as PlanInfo;
         setPlan(p);
-
         const [tasksRes, internalRes] = await Promise.all([
-          supabase
-            .from("tasks")
-            .select("id,title,status,priority,deadline")
-            .eq("plan_id", p.id)
-            .order("position"),
-          supabase
-            .from("internal_tasks")
-            .select("id,title,status,priority,due_date")
-            .eq("plan_id", c.plan_id),
+          supabase.from("tasks").select("id,title,status,priority,deadline").eq("plan_id", p.id).order("position"),
+          supabase.from("internal_tasks").select("id,title,status,priority,due_date").eq("plan_id", c.plan_id),
         ]);
         if (tasksRes.data) setPlanTasks(tasksRes.data as unknown as TaskRow[]);
         if (internalRes.data) setInternalTasks(internalRes.data as unknown as InternalTask[]);
@@ -212,34 +221,21 @@ function ClientProfile() {
   async function saveClient() {
     if (!client) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("contacts")
-      .update({
-        name: editForm.name,
-        business_name: editForm.business_name,
-        phone: editForm.phone,
-        email: editForm.email,
-        city: editForm.city,
-        website: editForm.website,
-        industry: editForm.industry,
-        business_type: editForm.business_type,
-        service_type: editForm.service_type,
-        id_number: editForm.id_number,
-        tax_id: editForm.tax_id,
-        employees_count: editForm.employees_count,
-        contract_signed_date: editForm.contract_signed_date || null,
-        contract_end_date: editForm.contract_end_date || null,
-        monthly_fee: editForm.monthly_fee,
-        monthly_ad_budget: editForm.monthly_ad_budget,
-        initial_revenue: editForm.initial_revenue,
-        business_goals: editForm.business_goals,
-        instagram_handle: editForm.instagram_handle,
-        facebook_url: editForm.facebook_url,
-        tiktok_handle: editForm.tiktok_handle,
-        notes: editForm.notes,
-        client_status: editForm.client_status,
-      } as never)
-      .eq("id", client.id);
+    const { error } = await supabase.from("contacts").update({
+      name: editForm.name, business_name: editForm.business_name,
+      phone: editForm.phone, email: editForm.email, city: editForm.city,
+      website: editForm.website, industry: editForm.industry,
+      business_type: editForm.business_type, service_type: editForm.service_type,
+      id_number: editForm.id_number, tax_id: editForm.tax_id,
+      employees_count: editForm.employees_count,
+      contract_signed_date: editForm.contract_signed_date || null,
+      contract_end_date: editForm.contract_end_date || null,
+      monthly_fee: editForm.monthly_fee, monthly_ad_budget: editForm.monthly_ad_budget,
+      initial_revenue: editForm.initial_revenue, business_goals: editForm.business_goals,
+      instagram_handle: editForm.instagram_handle, facebook_url: editForm.facebook_url,
+      tiktok_handle: editForm.tiktok_handle, notes: editForm.notes,
+      client_status: editForm.client_status,
+    } as never).eq("id", client.id);
     setSaving(false);
     if (error) { toast.error("שגיאה בשמירה"); return; }
     setClient((prev) => prev ? { ...prev, ...editForm } : prev);
@@ -290,24 +286,29 @@ function ClientProfile() {
 
   // ── Derived data ────────────────────────────────────────────────────────
 
-  const col = avatarColor(client.name);
-  const st = (client.client_status ?? "active") as keyof typeof CLIENT_STATUS;
-  const today = new Date().toISOString().split("T")[0];
-  const upcomingMeetings = meetings.filter(
-    (m) => m.status === "מתוכנן" && m.meeting_date >= today
-  ).sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
-  const pastMeetings = meetings.filter(
-    (m) => m.status !== "מתוכנן" || m.meeting_date < today
-  );
-  const nextMtg = upcomingMeetings[0];
-  const doneTasks = planTasks.filter((t) => t.status === "הושלם").length;
-  const openInternalTasks = internalTasks.filter((t) => t.status !== "הושלם").length;
+  const col       = avatarColor(client.name);
+  const st        = (client.client_status ?? "active") as keyof typeof CLIENT_STATUS;
+  const today     = todayStr();
+  const upcomingMeetings = meetings.filter(m => m.status === "מתוכנן" && m.meeting_date >= today)
+    .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
+  const pastMeetings = meetings.filter(m => m.status !== "מתוכנן" || m.meeting_date < today);
+  const nextMtg    = upcomingMeetings[0];
+  const doneTasks  = planTasks.filter(t => t.status === "הושלם").length;
+  const openInternalTasks = internalTasks.filter(t => t.status !== "הושלם").length;
+
+  // Shoot days derived
+  const nextShoot = [...shootDays].filter(d => (d.shoot_date ?? "") >= today)
+    .sort((a, b) => (a.shoot_date ?? "").localeCompare(b.shoot_date ?? ""))[0] ?? null;
+  const lastShoot = [...shootDays].filter(d => (d.shoot_date ?? "") < today)
+    .sort((a, b) => (b.shoot_date ?? "").localeCompare(a.shoot_date ?? ""))[0] ?? null;
+  const allVideos = shootDays.flatMap(d => d.videos);
+  const videosDone = allVideos.filter(v => v.edit_status === "הושלם").length;
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: "overview",  label: "סקירה" },
     { key: "meetings",  label: "פגישות",  count: meetings.length },
     { key: "plans",     label: "תוכנית",  count: planTasks.length },
-    { key: "content",   label: "תוכן",    count: content.length },
+    { key: "content",   label: "תוכן",    count: shootDays.length },
     { key: "tasks",     label: "משימות",  count: internalTasks.length },
   ];
 
@@ -318,9 +319,7 @@ function ClientProfile() {
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
         <Input
-          type={opts?.type ?? "text"}
-          dir={opts?.dir}
-          placeholder={opts?.placeholder}
+          type={opts?.type ?? "text"} dir={opts?.dir} placeholder={opts?.placeholder}
           value={(editForm[key] as string | number | null | undefined) ?? ""}
           onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value || null }))}
         />
@@ -335,11 +334,8 @@ function ClientProfile() {
       <Toaster position="top-center" dir="rtl" />
       <div className="min-h-screen px-7 py-6" style={{ direction: "rtl" }}>
 
-        {/* Back button */}
-        <button
-          onClick={() => navigate({ to: "/clients" })}
-          className="mb-4 flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
+        <button onClick={() => navigate({ to: "/clients" })}
+          className="mb-4 flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
           <ChevronRight className="h-4 w-4" />
           חזרה ללקוחות
         </button>
@@ -347,10 +343,8 @@ function ClientProfile() {
         {/* Header card */}
         <div className="glass mb-6 rounded-2xl p-6">
           <div className="flex items-start gap-5">
-            <div
-              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-lg"
-              style={{ backgroundColor: col }}
-            >
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-lg"
+              style={{ backgroundColor: col }}>
               {initials(client.name)}
             </div>
 
@@ -372,14 +366,12 @@ function ClientProfile() {
                     )}
                     {client.industry && (
                       <span className="flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">
-                        <Building2 className="h-3 w-3" />
-                        {client.industry}
+                        <Building2 className="h-3 w-3" />{client.industry}
                       </span>
                     )}
                     {client.city && (
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        {client.city}
+                        <MapPin className="h-3 w-3" />{client.city}
                       </span>
                     )}
                     {client.client_since && (
@@ -389,58 +381,65 @@ function ClientProfile() {
                     )}
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => { setEditing(true); setTab("overview"); }}
-                >
-                  <Pencil className="me-1 h-3.5 w-3.5" />
-                  עריכה
+                <Button size="sm" variant="outline" onClick={() => { setEditing(true); setTab("overview"); }}>
+                  <Pencil className="me-1 h-3.5 w-3.5" />עריכה
                 </Button>
               </div>
 
-              {/* Contact links */}
               <div className="mt-3 flex flex-wrap gap-3">
                 {client.phone && (
-                  <a
-                    href={`tel:${client.phone}`}
-                    className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <Phone className="h-3.5 w-3.5" />
-                    <span dir="ltr">{client.phone}</span>
+                  <a href={`tel:${client.phone}`}
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                    <Phone className="h-3.5 w-3.5" /><span dir="ltr">{client.phone}</span>
                   </a>
                 )}
                 {client.email && (
-                  <a
-                    href={`mailto:${client.email}`}
-                    className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                    <span>{client.email}</span>
+                  <a href={`mailto:${client.email}`}
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                    <Mail className="h-3.5 w-3.5" /><span>{client.email}</span>
                   </a>
                 )}
                 {client.website && (
-                  <a
-                    href={client.website.startsWith("http") ? client.website : `https://${client.website}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                    <span dir="ltr">{client.website}</span>
+                  <a href={client.website.startsWith("http") ? client.website : `https://${client.website}`}
+                    target="_blank" rel="noreferrer"
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                    <Globe className="h-3.5 w-3.5" /><span dir="ltr">{client.website}</span>
                   </a>
                 )}
               </div>
 
-              {/* Next meeting */}
-              {nextMtg && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  <span className="text-muted-foreground">פגישה הבאה:</span>
-                  <span className="font-medium text-primary">{fmtShort(nextMtg.meeting_date)}</span>
-                  <span className="text-muted-foreground">— {nextMtg.title}</span>
-                </div>
-              )}
+              {/* Banners: next meeting + next/last shoot */}
+              <div className="mt-3 flex flex-col gap-2">
+                {nextMtg && (
+                  <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    <span className="text-muted-foreground">פגישה הבאה:</span>
+                    <span className="font-medium text-primary">{fmtShort(nextMtg.meeting_date)}</span>
+                    <span className="text-muted-foreground">— {nextMtg.title}</span>
+                  </div>
+                )}
+                {nextShoot && (
+                  <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm dark:border-blue-900 dark:bg-blue-950/30">
+                    <Camera className="h-4 w-4 text-blue-500" />
+                    <span className="text-muted-foreground">יום צילום הבא:</span>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                      {fmtDate(nextShoot.shoot_date!)}
+                    </span>
+                  </div>
+                )}
+                {!nextShoot && lastShoot && (
+                  <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+                    <Camera className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">יום צילום אחרון:</span>
+                    <span className="font-medium text-foreground">{fmtDate(lastShoot.shoot_date!)}</span>
+                    {lastShoot.status === "הושלם" && (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-400">
+                        הושלם
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -448,22 +447,15 @@ function ClientProfile() {
         {/* Tab bar */}
         <div className="mb-6 flex items-center gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">
           {TABS.map(({ key, label, count }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
+            <button key={key} onClick={() => setTab(key)}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                tab === key
-                  ? "bg-primary text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
+                tab === key ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>
               {label}
               {count !== undefined && count > 0 && (
-                <span className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px]",
-                  tab === key ? "bg-white/20" : "bg-muted"
-                )}>
+                <span className={cn("rounded-full px-1.5 py-0.5 text-[10px]",
+                  tab === key ? "bg-white/20" : "bg-muted")}>
                   {count}
                 </span>
               )}
@@ -474,7 +466,6 @@ function ClientProfile() {
         {/* ── Overview tab ───────────────────────────────────────────── */}
         {tab === "overview" && (
           <div className="grid gap-5 lg:grid-cols-3">
-            {/* Details card — left 2 cols */}
             <div className="glass rounded-2xl p-5 lg:col-span-2">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-foreground">פרטי לקוח</h2>
@@ -497,33 +488,22 @@ function ClientProfile() {
 
               {editing ? (
                 <div className="space-y-5">
-                  {/* פרטי קשר */}
                   <div>
                     <SectionTitle>פרטי קשר</SectionTitle>
                     <div className="grid grid-cols-2 gap-3">
-                      {F("שם מלא", "name")}
-                      {F("שם עסק", "business_name")}
-                      {F("טלפון", "phone", { dir: "ltr" })}
-                      {F("מייל", "email", { dir: "ltr" })}
-                      {F("עיר", "city")}
-                      {F("אתר אינטרנט", "website", { dir: "ltr", placeholder: "https://..." })}
+                      {F("שם מלא", "name")} {F("שם עסק", "business_name")}
+                      {F("טלפון", "phone", { dir: "ltr" })} {F("מייל", "email", { dir: "ltr" })}
+                      {F("עיר", "city")} {F("אתר אינטרנט", "website", { dir: "ltr", placeholder: "https://..." })}
                     </div>
                   </div>
-
-                  {/* פרטים עסקיים */}
                   <div className="border-t border-border/50 pt-4">
                     <SectionTitle>פרטים עסקיים</SectionTitle>
                     <div className="grid grid-cols-2 gap-3">
-                      {F("ענף עסקי", "industry")}
-                      {F("סוג עסק", "business_type", { placeholder: "עוסק מורשה / חברה בע\"מ..." })}
-                      {F("ח.פ / ע.מ", "tax_id", { dir: "ltr" })}
-                      {F("ת.ז", "id_number", { dir: "ltr" })}
-                      {F("מספר עובדים", "employees_count", { type: "number" })}
-                      {F("מחזור התחלתי", "initial_revenue", { placeholder: "₪..." })}
+                      {F("ענף עסקי", "industry")} {F("סוג עסק", "business_type", { placeholder: "עוסק מורשה / חברה בע\"מ..." })}
+                      {F("ח.פ / ע.מ", "tax_id", { dir: "ltr" })} {F("ת.ז", "id_number", { dir: "ltr" })}
+                      {F("מספר עובדים", "employees_count", { type: "number" })} {F("מחזור התחלתי", "initial_revenue", { placeholder: "₪..." })}
                     </div>
                   </div>
-
-                  {/* שירות וחוזה */}
                   <div className="border-t border-border/50 pt-4">
                     <SectionTitle>שירות וחוזה</SectionTitle>
                     <div className="grid grid-cols-2 gap-3">
@@ -535,8 +515,6 @@ function ClientProfile() {
                       {F("תאריך סיום חוזה", "contract_end_date", { type: "date" })}
                     </div>
                   </div>
-
-                  {/* רשתות חברתיות */}
                   <div className="border-t border-border/50 pt-4">
                     <SectionTitle>רשתות חברתיות</SectionTitle>
                     <div className="grid grid-cols-2 gap-3">
@@ -545,18 +523,14 @@ function ClientProfile() {
                       {F("טיקטוק", "tiktok_handle", { dir: "ltr", placeholder: "@handle" })}
                     </div>
                   </div>
-
-                  {/* סטטוס + מטרות */}
                   <div className="border-t border-border/50 pt-4">
                     <SectionTitle>נוסף</SectionTitle>
                     <div className="space-y-3">
                       <div>
                         <label className="mb-1 block text-xs font-medium text-muted-foreground">סטטוס</label>
-                        <select
-                          value={editForm.client_status ?? "active"}
+                        <select value={editForm.client_status ?? "active"}
                           onChange={(e) => setEditForm((f) => ({ ...f, client_status: e.target.value }))}
-                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-                        >
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
                           <option value="active">פעיל</option>
                           <option value="paused">מושהה</option>
                           <option value="ended">הסתיים</option>
@@ -575,7 +549,6 @@ function ClientProfile() {
                 </div>
               ) : (
                 <div className="space-y-5">
-                  {/* פרטי קשר */}
                   <div>
                     <SectionTitle>פרטי קשר</SectionTitle>
                     <div className="space-y-2">
@@ -588,8 +561,6 @@ function ClientProfile() {
                       <InfoRow label="מקור" value={client.source} />
                     </div>
                   </div>
-
-                  {/* פרטים עסקיים */}
                   <div className="border-t border-border/50 pt-5">
                     <SectionTitle>פרטים עסקיים</SectionTitle>
                     <div className="space-y-2">
@@ -601,8 +572,6 @@ function ClientProfile() {
                       <InfoRow label="מחזור התחלתי" value={client.initial_revenue} />
                     </div>
                   </div>
-
-                  {/* שירות וחוזה */}
                   <div className="border-t border-border/50 pt-5">
                     <SectionTitle>שירות וחוזה</SectionTitle>
                     <div className="space-y-2">
@@ -613,8 +582,6 @@ function ClientProfile() {
                       <InfoRow label="סיום חוזה" value={client.contract_end_date ? fmtDate(client.contract_end_date) : null} />
                     </div>
                   </div>
-
-                  {/* רשתות חברתיות */}
                   {(client.instagram_handle || client.facebook_url || client.tiktok_handle) && (
                     <div className="border-t border-border/50 pt-5">
                       <SectionTitle>רשתות חברתיות</SectionTitle>
@@ -628,13 +595,8 @@ function ClientProfile() {
                         {client.facebook_url && (
                           <div className="flex items-center gap-2">
                             <Facebook className="h-3.5 w-3.5 text-muted-foreground" />
-                            <a
-                              href={client.facebook_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-sm text-primary hover:underline"
-                              dir="ltr"
-                            >
+                            <a href={client.facebook_url} target="_blank" rel="noreferrer"
+                              className="text-sm text-primary hover:underline" dir="ltr">
                               {client.facebook_url}
                             </a>
                           </div>
@@ -648,8 +610,6 @@ function ClientProfile() {
                       </div>
                     </div>
                   )}
-
-                  {/* מטרות + הערות */}
                   {client.business_goals && (
                     <div className="border-t border-border/50 pt-5">
                       <SectionTitle>מטרות עסקיות</SectionTitle>
@@ -666,13 +626,14 @@ function ClientProfile() {
               )}
             </div>
 
-            {/* Right col — quick stats + recent meetings */}
+            {/* Right col */}
             <div className="space-y-4">
               <div className="glass rounded-2xl p-5">
                 <h2 className="mb-4 text-base font-semibold text-foreground">סטטיסטיקות</h2>
                 <div className="space-y-3">
                   <StatRow icon={<CalendarDays className="h-4 w-4 text-primary" />} label="פגישות" value={String(meetings.length)} />
-                  <StatRow icon={<Film className="h-4 w-4 text-purple-400" />} label="פריטי תוכן" value={String(content.length)} />
+                  <StatRow icon={<Camera className="h-4 w-4 text-blue-400" />} label="ימי צילום" value={String(shootDays.length)} />
+                  <StatRow icon={<Film className="h-4 w-4 text-purple-400" />} label="סרטונים" value={`${videosDone}/${allVideos.length} הושלמו`} />
                   <StatRow icon={<Target className="h-4 w-4 text-amber-400" />} label="משימות פתוחות" value={String(openInternalTasks)} />
                   {client.monthly_fee && (
                     <StatRow icon={<DollarSign className="h-4 w-4 text-green-400" />} label="עלות חודשית" value={client.monthly_fee} />
@@ -681,14 +642,40 @@ function ClientProfile() {
                     <StatRow icon={<Users className="h-4 w-4 text-sky-400" />} label="עובדים" value={String(client.employees_count)} />
                   )}
                   {plan && (
-                    <StatRow
-                      icon={<FileText className="h-4 w-4 text-teal-400" />}
-                      label="תוכנית"
-                      value={plan.name}
-                    />
+                    <StatRow icon={<FileText className="h-4 w-4 text-teal-400" />} label="תוכנית" value={plan.name} />
                   )}
                 </div>
               </div>
+
+              {/* Shoot days mini card */}
+              {shootDays.length > 0 && (
+                <div className="glass rounded-2xl p-5">
+                  <h2 className="mb-3 text-base font-semibold text-foreground">ימי צילום</h2>
+                  <div className="space-y-2">
+                    {nextShoot && (
+                      <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 dark:bg-blue-950/30">
+                        <Camera className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                        <div>
+                          <p className="text-[11px] text-muted-foreground">הבא</p>
+                          <p className="text-sm font-medium text-foreground">{fmtDate(nextShoot.shoot_date!)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {lastShoot && (
+                      <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2">
+                        <Camera className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <div>
+                          <p className="text-[11px] text-muted-foreground">אחרון</p>
+                          <p className="text-sm font-medium text-foreground">{fmtDate(lastShoot.shoot_date!)}</p>
+                        </div>
+                        {lastShoot.status === "הושלם" && (
+                          <CheckCircle2 className="ms-auto h-4 w-4 text-green-500 shrink-0" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {meetings.length > 0 && (
                 <div className="glass rounded-2xl p-5">
@@ -707,7 +694,6 @@ function ClientProfile() {
                 </div>
               )}
 
-              {/* Contract info card */}
               {(client.contract_signed_date || client.contract_end_date) && (
                 <div className="glass rounded-2xl p-5">
                   <h2 className="mb-3 text-base font-semibold text-foreground">חוזה</h2>
@@ -745,16 +731,13 @@ function ClientProfile() {
                     <h2 className="mb-3 text-sm font-semibold text-muted-foreground">פגישות קרובות</h2>
                     <div className="space-y-3">
                       {upcomingMeetings.map((m) => (
-                        <MeetingCard
-                          key={m.id}
-                          meeting={m}
+                        <MeetingCard key={m.id} meeting={m}
                           expanded={expandedMeeting === m.id}
-                          onToggle={() => setExpandedMeeting((p) => p === m.id ? null : m.id)}
+                          onToggle={() => setExpandedMeeting(p => p === m.id ? null : m.id)}
                           notes={meetingNotes[m.id] ?? ""}
-                          onNotesChange={(v) => setMeetingNotes((p) => ({ ...p, [m.id]: v }))}
+                          onNotesChange={(v) => setMeetingNotes(p => ({ ...p, [m.id]: v }))}
                           onNotesSave={() => void saveMeetingNotes(m.id)}
-                          onToggleAction={(itemId) => void toggleActionItem(m.id, itemId)}
-                        />
+                          onToggleAction={(itemId) => void toggleActionItem(m.id, itemId)} />
                       ))}
                     </div>
                   </div>
@@ -764,16 +747,13 @@ function ClientProfile() {
                     <h2 className="mb-3 text-sm font-semibold text-muted-foreground">פגישות קודמות</h2>
                     <div className="space-y-3">
                       {pastMeetings.map((m) => (
-                        <MeetingCard
-                          key={m.id}
-                          meeting={m}
+                        <MeetingCard key={m.id} meeting={m}
                           expanded={expandedMeeting === m.id}
-                          onToggle={() => setExpandedMeeting((p) => p === m.id ? null : m.id)}
+                          onToggle={() => setExpandedMeeting(p => p === m.id ? null : m.id)}
                           notes={meetingNotes[m.id] ?? ""}
-                          onNotesChange={(v) => setMeetingNotes((p) => ({ ...p, [m.id]: v }))}
+                          onNotesChange={(v) => setMeetingNotes(p => ({ ...p, [m.id]: v }))}
                           onNotesSave={() => void saveMeetingNotes(m.id)}
-                          onToggleAction={(itemId) => void toggleActionItem(m.id, itemId)}
-                        />
+                          onToggleAction={(itemId) => void toggleActionItem(m.id, itemId)} />
                       ))}
                     </div>
                   </div>
@@ -792,56 +772,39 @@ function ClientProfile() {
               <div className="glass rounded-2xl p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div
-                      className="h-3 w-3 rounded-full"
-                      style={{ backgroundColor: plan.accent_color ?? col }}
-                    />
+                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: plan.accent_color ?? col }} />
                     <h2 className="text-base font-semibold text-foreground">{plan.name}</h2>
                   </div>
-                  <a
-                    href={`/p/${plan.slug}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    פורטל לקוח
+                  <a href={`/p/${plan.slug}`} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-1 text-xs text-primary hover:underline">
+                    <ExternalLink className="h-3.5 w-3.5" />פורטל לקוח
                   </a>
                 </div>
-
                 {planTasks.length > 0 && (
                   <div className="mb-4">
                     <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>התקדמות</span>
-                      <span>{doneTasks}/{planTasks.length}</span>
+                      <span>התקדמות</span><span>{doneTasks}/{planTasks.length}</span>
                     </div>
                     <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${Math.round((doneTasks / planTasks.length) * 100)}%` }}
-                      />
+                      <div className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${Math.round((doneTasks / planTasks.length) * 100)}%` }} />
                     </div>
                   </div>
                 )}
-
                 {planTasks.length === 0 ? (
                   <p className="text-sm text-muted-foreground">אין משימות בתוכנית</p>
                 ) : (
                   <div className="space-y-2">
                     {planTasks.map((t) => (
                       <div key={t.id} className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted/30">
-                        {t.status === "הושלם" ? (
-                          <CheckSquare className="h-4 w-4 shrink-0 text-green-500" />
-                        ) : (
-                          <Square className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        )}
+                        {t.status === "הושלם"
+                          ? <CheckSquare className="h-4 w-4 shrink-0 text-green-500" />
+                          : <Square className="h-4 w-4 shrink-0 text-muted-foreground" />}
                         <span className={cn("flex-1 text-sm", t.status === "הושלם" && "line-through text-muted-foreground")}>
                           {t.title}
                         </span>
-                        <span className={cn(
-                          "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          t.priority === "גבוהה" ? "badge-urgent" : t.priority === "בינונית" ? "badge-warning" : "badge-primary"
-                        )}>
+                        <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium",
+                          t.priority === "גבוהה" ? "badge-urgent" : t.priority === "בינונית" ? "badge-warning" : "badge-primary")}>
                           {t.priority}
                         </span>
                       </div>
@@ -853,37 +816,178 @@ function ClientProfile() {
           </div>
         )}
 
-        {/* ── Content tab ────────────────────────────────────────────── */}
+        {/* ── Content tab — shoot days ────────────────────────────────── */}
         {tab === "content" && (
-          <div>
-            {content.length === 0 ? (
-              <EmptyState icon={<Film className="h-10 w-10" />} text="אין פריטי תוכן" />
+          <div className="space-y-4">
+            {shootDays.length === 0 ? (
+              <EmptyState icon={<Camera className="h-10 w-10" />} text="אין ימי צילום עדיין" />
             ) : (
-              <div className="space-y-2">
-                {content.map((item) => (
-                  <div key={item.id} className="glass flex items-center gap-3 rounded-xl p-4">
-                    <Film className="h-4 w-4 shrink-0 text-purple-400" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
-                      {item.assigned_editor && (
-                        <p className="text-xs text-muted-foreground">עורך: {item.assigned_editor}</p>
-                      )}
+              <>
+                {/* Summary strip */}
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    { label: "ימי צילום", val: shootDays.length, icon: <Camera className="h-3.5 w-3.5" /> },
+                    { label: "סרטונים", val: allVideos.length, icon: <Video className="h-3.5 w-3.5" /> },
+                    { label: "בעריכה", val: allVideos.filter(v => v.edit_status === "בעריכה").length, icon: <Clock className="h-3.5 w-3.5" /> },
+                    { label: "הושלמו", val: videosDone, icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> },
+                  ].map(s => (
+                    <div key={s.label} className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5">
+                      <span className="text-muted-foreground">{s.icon}</span>
+                      <span className="text-lg font-bold text-foreground">{s.val}</span>
+                      <span className="text-xs text-muted-foreground">{s.label}</span>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="badge-primary rounded px-2 py-0.5 text-[10px]">{item.content_type}</span>
-                      <span className={cn(
-                        "rounded px-2 py-0.5 text-[10px] font-medium",
-                        item.status === "הושלם" ? "badge-success" : item.status === "בעריכה" ? "badge-warning" : "badge-primary"
-                      )}>
-                        {item.status}
-                      </span>
-                      {item.due_date && (
-                        <span className="text-xs text-muted-foreground">{fmtShort(item.due_date)}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                {/* Shoot day cards */}
+                <div className="space-y-3">
+                  {[...shootDays]
+                    .sort((a, b) => (b.shoot_date ?? "").localeCompare(a.shoot_date ?? ""))
+                    .map(sd => {
+                      const kind  = shootDayKind(sd);
+                      const style = SHOOT_KIND_STYLE[kind];
+                      const vids  = sd.videos;
+                      const notStarted = vids.filter(v => v.edit_status === "לא התחיל").length;
+                      const editing    = vids.filter(v => v.edit_status === "בעריכה").length;
+                      const done       = vids.filter(v => v.edit_status === "הושלם").length;
+                      const dayNum     = sd.shoot_date
+                        ? new Date(sd.shoot_date + "T12:00:00").getDate()
+                        : null;
+                      const isExpanded = expandedShootDay === sd.id;
+
+                      return (
+                        <div key={sd.id} className="glass overflow-hidden rounded-2xl"
+                          style={{ borderRightWidth: 3, borderRightColor: style.border }}>
+
+                          {/* Card header */}
+                          <button onClick={() => setExpandedShootDay(isExpanded ? null : sd.id)}
+                            className="flex w-full items-center gap-3 p-4 text-right hover:bg-muted/20 transition-colors">
+
+                            {/* Day number */}
+                            <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border border-border/60"
+                              style={{ background: style.dayBg }}>
+                              {dayNum !== null ? (
+                                <span className="text-2xl font-black leading-none tabular-nums"
+                                  style={{ color: style.dayColor }}>
+                                  {dayNum}
+                                </span>
+                              ) : (
+                                <Camera className="h-5 w-5 text-muted-foreground/40" />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1 text-right">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {sd.shoot_date && (
+                                  <span className="text-sm font-semibold text-foreground">
+                                    {fmtDate(sd.shoot_date)}
+                                  </span>
+                                )}
+                                <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                  style={{ background: style.lBg, color: style.lColor }}>
+                                  {style.label}
+                                </span>
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                {notStarted > 0 && (
+                                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                    <Circle className="h-2.5 w-2.5" />{notStarted} לא התחיל
+                                  </span>
+                                )}
+                                {editing > 0 && (
+                                  <span className="flex items-center gap-1 text-[11px] text-blue-500">
+                                    <Clock className="h-2.5 w-2.5" />{editing} בעריכה
+                                  </span>
+                                )}
+                                {done > 0 && (
+                                  <span className="flex items-center gap-1 text-[11px] text-green-600">
+                                    <CheckCircle2 className="h-2.5 w-2.5" />{done} הושלם
+                                  </span>
+                                )}
+                                {vids.length === 0 && (
+                                  <span className="text-[11px] text-muted-foreground/50">אין סרטונים</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Progress */}
+                            {vids.length > 0 && (
+                              <div className="hidden items-center gap-1.5 sm:flex shrink-0">
+                                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+                                  <div className="h-full rounded-full bg-green-500 transition-all"
+                                    style={{ width: `${(done / vids.length) * 100}%` }} />
+                                </div>
+                                <span className="text-[10px] tabular-nums text-muted-foreground">{done}/{vids.length}</span>
+                              </div>
+                            )}
+
+                            <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground/40 transition-transform", isExpanded && "-rotate-90")} />
+                          </button>
+
+                          {/* Expanded content */}
+                          {isExpanded && (
+                            <div className="border-t border-border/50 space-y-4 px-4 pb-4 pt-3">
+                              {/* Creative brief */}
+                              {sd.creative_brief ? (
+                                <div>
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                      <FileText className="h-3.5 w-3.5" />קריאייטיב בריף
+                                    </p>
+                                    <button onClick={() => setBriefModal(sd.creative_brief!)}
+                                      className="cursor-pointer text-[11px] text-primary hover:underline">
+                                      הצג הכל
+                                    </button>
+                                  </div>
+                                  <p className="line-clamp-3 rounded-xl bg-muted/40 px-3 py-2.5 text-sm leading-relaxed text-foreground">
+                                    {sd.creative_brief}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground/50 italic">אין קריאייטיב בריף</p>
+                              )}
+
+                              {/* Videos list */}
+                              {vids.length > 0 && (
+                                <div>
+                                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                    <Video className="h-3.5 w-3.5" />סרטונים
+                                  </p>
+                                  <div className="space-y-1.5">
+                                    {vids.map(v => {
+                                      const vm = EDIT_META[v.edit_status] ?? EDIT_META["לא התחיל"];
+                                      return (
+                                        <div key={v.id} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+                                          <span style={{ color: vm.color }}>
+                                            {v.edit_status === "לא התחיל" && <Circle className="h-3.5 w-3.5" />}
+                                            {v.edit_status === "בעריכה"   && <Clock className="h-3.5 w-3.5" />}
+                                            {v.edit_status === "הושלם"    && <CheckCircle2 className="h-3.5 w-3.5" />}
+                                          </span>
+                                          <span className="flex-1 text-sm text-foreground truncate">{v.title}</span>
+                                          <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                                            style={{ background: vm.bg, color: vm.color }}>
+                                            {v.edit_status}
+                                          </span>
+                                          <span className="shrink-0 text-[10px] text-muted-foreground">{v.content_type}</span>
+                                          {v.drive_link && (
+                                            <a href={v.drive_link} target="_blank" rel="noopener noreferrer"
+                                              className="shrink-0 text-muted-foreground hover:text-primary transition-colors">
+                                              <ExternalLink className="h-3.5 w-3.5" />
+                                            </a>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -899,11 +1003,9 @@ function ClientProfile() {
                   const overdue = t.due_date && t.due_date < today && t.status !== "הושלם";
                   return (
                     <div key={t.id} className="glass flex items-center gap-3 rounded-xl p-4">
-                      {t.status === "הושלם" ? (
-                        <CheckSquare className="h-4 w-4 shrink-0 text-green-500" />
-                      ) : (
-                        <Square className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      )}
+                      {t.status === "הושלם"
+                        ? <CheckSquare className="h-4 w-4 shrink-0 text-green-500" />
+                        : <Square className="h-4 w-4 shrink-0 text-muted-foreground" />}
                       <div className="min-w-0 flex-1">
                         <p className={cn("truncate text-sm font-medium", t.status === "הושלם" && "line-through text-muted-foreground")}>
                           {t.title}
@@ -915,10 +1017,8 @@ function ClientProfile() {
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <span className={cn(
-                          "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          t.priority === "גבוהה" ? "badge-urgent" : t.priority === "בינונית" ? "badge-warning" : "badge-primary"
-                        )}>
+                        <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium",
+                          t.priority === "גבוהה" ? "badge-urgent" : t.priority === "בינונית" ? "badge-warning" : "badge-primary")}>
                           {t.priority}
                         </span>
                         <span className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground">{t.status}</span>
@@ -932,6 +1032,29 @@ function ClientProfile() {
         )}
 
       </div>
+
+      {/* Brief modal */}
+      {briefModal !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setBriefModal(null)}>
+          <div className="w-full max-w-lg rounded-2xl bg-background shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()} dir="rtl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                קריאייטיב בריף
+              </div>
+              <button onClick={() => setBriefModal(null)}
+                className="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-5">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{briefModal}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
@@ -946,9 +1069,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function InfoRow({
-  label, value, dir, link,
-}: {
+function InfoRow({ label, value, dir, link }: {
   label: string; value: string | null | undefined; dir?: string; link?: boolean;
 }) {
   if (!value) return null;
@@ -956,13 +1077,9 @@ function InfoRow({
     <div className="flex items-baseline gap-2">
       <span className="min-w-[90px] shrink-0 text-xs text-muted-foreground">{label}</span>
       {link ? (
-        <a
-          href={value.startsWith("http") ? value : `https://${value}`}
-          target="_blank"
-          rel="noreferrer"
-          className="text-sm text-primary hover:underline"
-          dir={dir}
-        >
+        <a href={value.startsWith("http") ? value : `https://${value}`}
+          target="_blank" rel="noreferrer"
+          className="text-sm text-primary hover:underline" dir={dir}>
           {value}
         </a>
       ) : (
@@ -993,25 +1110,16 @@ function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
   );
 }
 
-function MeetingCard({
-  meeting, expanded, onToggle,
-  notes, onNotesChange, onNotesSave, onToggleAction,
-}: {
-  meeting: MeetingRow;
-  expanded: boolean;
-  onToggle: () => void;
-  notes: string;
-  onNotesChange: (v: string) => void;
-  onNotesSave: () => void;
-  onToggleAction: (itemId: string) => void;
+function MeetingCard({ meeting, expanded, onToggle, notes, onNotesChange, onNotesSave, onToggleAction }: {
+  meeting: MeetingRow; expanded: boolean; onToggle: () => void;
+  notes: string; onNotesChange: (v: string) => void;
+  onNotesSave: () => void; onToggleAction: (itemId: string) => void;
 }) {
   const typeLabel = MTG_TYPE[meeting.type] ?? meeting.type;
   return (
     <div className="glass overflow-hidden rounded-2xl">
-      <button
-        onClick={onToggle}
-        className="flex w-full items-center gap-3 p-4 text-right transition-colors hover:bg-muted/20"
-      >
+      <button onClick={onToggle}
+        className="flex w-full items-center gap-3 p-4 text-right transition-colors hover:bg-muted/20">
         <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl bg-primary/10 text-primary">
           <CalendarDays className="h-4 w-4" />
         </div>
@@ -1023,44 +1131,29 @@ function MeetingCard({
           <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
             <span>{fmtDate(meeting.meeting_date)}</span>
             {meeting.meeting_time && <span>{meeting.meeting_time}</span>}
-            {meeting.attendees.length > 0 && (
-              <span>· {meeting.attendees.join(", ")}</span>
-            )}
+            {meeting.attendees.length > 0 && <span>· {meeting.attendees.join(", ")}</span>}
           </div>
         </div>
-        <ChevronRight
-          className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", expanded && "-rotate-90")}
-        />
+        <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", expanded && "-rotate-90")} />
       </button>
 
       {expanded && (
         <div className="space-y-4 border-t border-border/50 px-4 pb-4 pt-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">סיכום פגישה</label>
-            <Textarea
-              value={notes}
-              onChange={(e) => onNotesChange(e.target.value)}
-              onBlur={onNotesSave}
-              rows={3}
-              placeholder="הוסף סיכום..."
-            />
+            <Textarea value={notes} onChange={(e) => onNotesChange(e.target.value)}
+              onBlur={onNotesSave} rows={3} placeholder="הוסף סיכום..." />
           </div>
-
           {meeting.action_items.length > 0 && (
             <div>
               <label className="mb-2 block text-xs font-medium text-muted-foreground">משימות לביצוע</label>
               <div className="space-y-1.5">
                 {meeting.action_items.map((a) => (
-                  <button
-                    key={a.id}
-                    onClick={() => onToggleAction(a.id)}
-                    className="flex w-full items-center gap-2 rounded-lg p-2 text-right transition-colors hover:bg-muted/30"
-                  >
-                    {a.done ? (
-                      <CheckSquare className="h-4 w-4 shrink-0 text-green-500" />
-                    ) : (
-                      <Square className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    )}
+                  <button key={a.id} onClick={() => onToggleAction(a.id)}
+                    className="flex w-full items-center gap-2 rounded-lg p-2 text-right transition-colors hover:bg-muted/30">
+                    {a.done
+                      ? <CheckSquare className="h-4 w-4 shrink-0 text-green-500" />
+                      : <Square className="h-4 w-4 shrink-0 text-muted-foreground" />}
                     <span className={cn("text-sm", a.done && "line-through text-muted-foreground")}>
                       {a.text}
                     </span>
