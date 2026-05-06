@@ -430,10 +430,10 @@ function GoalsPage() {
               {availableParents.length > 0 && (
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">יעד אב</label>
-                  <Select value={editParentId ?? ""} onValueChange={v => setEditParentId(v || null)}>
+                  <Select value={editParentId ?? "__none__"} onValueChange={v => setEditParentId(v === "__none__" ? null : v)}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="ללא" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">ללא</SelectItem>
+                      <SelectItem value="__none__">ללא</SelectItem>
                       {availableParents.map(g => <SelectItem key={g.id} value={g.id}>{g.title}</SelectItem>)}
                     </SelectContent>
                   </Select>
