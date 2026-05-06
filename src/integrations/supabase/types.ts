@@ -77,6 +77,10 @@ export type Database = {
           business_type: string | null
           tax_id: string | null
           city: string | null
+          meta_lead_id: string | null
+          form_name: string | null
+          ad_name: string | null
+          campaign_name: string | null
           instagram_handle: string | null
           facebook_url: string | null
           tiktok_handle: string | null
@@ -113,6 +117,10 @@ export type Database = {
           instagram_handle?: string | null
           facebook_url?: string | null
           tiktok_handle?: string | null
+          meta_lead_id?: string | null
+          form_name?: string | null
+          ad_name?: string | null
+          campaign_name?: string | null
         }
         Update: {
           id?: string
@@ -146,6 +154,10 @@ export type Database = {
           instagram_handle?: string | null
           facebook_url?: string | null
           tiktok_handle?: string | null
+          meta_lead_id?: string | null
+          form_name?: string | null
+          ad_name?: string | null
+          campaign_name?: string | null
         }
         Relationships: [
           {
@@ -304,18 +316,21 @@ export type Database = {
           created_at: string
           id: number
           updated_at: string
+          lead_stages: Json | null
         }
         Insert: {
           admin_password_hash?: string | null
           created_at?: string
           id?: number
           updated_at?: string
+          lead_stages?: Json | null
         }
         Update: {
           admin_password_hash?: string | null
           created_at?: string
           id?: number
           updated_at?: string
+          lead_stages?: Json | null
         }
         Relationships: []
       }
@@ -670,6 +685,89 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      shoot_days: {
+        Row: {
+          id: string
+          contact_id: string | null
+          shoot_date: string | null
+          creative_brief: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          contact_id?: string | null
+          shoot_date?: string | null
+          creative_brief?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          contact_id?: string | null
+          shoot_date?: string | null
+          creative_brief?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shoot_days_contact_id_fkey"
+            columns: ["contact_id"]
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shoot_videos: {
+        Row: {
+          id: string
+          shoot_day_id: string
+          title: string
+          content_type: string
+          edit_status: string
+          assigned_editor: string | null
+          drive_link: string | null
+          notes: string | null
+          position: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          shoot_day_id: string
+          title?: string
+          content_type?: string
+          edit_status?: string
+          assigned_editor?: string | null
+          drive_link?: string | null
+          notes?: string | null
+          position?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          shoot_day_id?: string
+          title?: string
+          content_type?: string
+          edit_status?: string
+          assigned_editor?: string | null
+          drive_link?: string | null
+          notes?: string | null
+          position?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shoot_videos_shoot_day_id_fkey"
+            columns: ["shoot_day_id"]
+            referencedRelation: "shoot_days"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
