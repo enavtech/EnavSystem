@@ -318,8 +318,8 @@ function GoalsPage() {
                 onEdit={openEdit}
                 onToggle={toggleComplete}
                 onDelete={deleteGoal}
-                onAddChild={parent => openCreate("weekly", parent.id)}
-                addChildLabel="+ שבועי"
+                onAddChild={parent => openCreate("monthly", parent.id)}
+                addChildLabel="+ חודשי"
                 onAddOrphan={() => openCreate("monthly")}
               />
             </div>
