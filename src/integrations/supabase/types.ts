@@ -359,6 +359,7 @@ export type Database = {
           created_at: string
           description: string | null
           due_date: string | null
+          goal_id: string | null
           id: string
           plan_id: string | null
           position: number
@@ -375,6 +376,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          goal_id?: string | null
           id?: string
           plan_id?: string | null
           position?: number
@@ -391,6 +393,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          goal_id?: string | null
           id?: string
           plan_id?: string | null
           position?: number
@@ -413,6 +416,13 @@ export type Database = {
             columns: ["client_task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_tasks_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "team_goals"
             referencedColumns: ["id"]
           },
           {
@@ -577,6 +587,62 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_goals: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          parent_id: string | null
+          period_end: string
+          period_start: string
+          period_type: string
+          position: number
+          progress: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          parent_id?: string | null
+          period_end: string
+          period_start: string
+          period_type: string
+          position?: number
+          progress?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          parent_id?: string | null
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          position?: number
+          progress?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_goals_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "team_goals"
             referencedColumns: ["id"]
           },
         ]
