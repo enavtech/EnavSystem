@@ -278,7 +278,7 @@ function ClientsPage() {
                 <button
                   key={c.id}
                   onClick={() => void navigate({ to: "/clients/$id", params: { id: c.id } })}
-                  className="glass cursor-pointer rounded-2xl p-5 text-right transition-all hover:shadow-elevated"
+                  className="glass flex flex-col cursor-pointer rounded-2xl p-5 text-right transition-all hover:shadow-elevated"
                   style={{ position: "relative", overflow: "hidden" }}
                 >
                   <span
@@ -334,7 +334,7 @@ function ClientsPage() {
                     </div>
                   )}
 
-                  <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
+                  <div className="mt-auto flex items-center justify-between border-t border-border/50 pt-3">
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                       {c.client_since && <span>מ-{fmtDate(c.client_since)}</span>}
                       {planName && (
