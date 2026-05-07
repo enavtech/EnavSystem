@@ -11,7 +11,7 @@ import {
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import {
-  Search, Plus, Phone, Mail, Building2, CalendarDays, Loader2, MapPin,
+  Search, Plus, Phone, Mail, Building2, CalendarDays, Loader2, MapPin, Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -89,9 +89,10 @@ const EMPTY_FORM = {
 
 function ClientsPage() {
   const navigate = useNavigate();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [clients,         setClients]         = useState<Client[]>([]);
+  const [archivedClients, setArchivedClients] = useState<Client[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [search,     setSearch]     = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [nextMeetings, setNextMeetings] = useState<Record<string, string>>({});
   const [planNames, setPlanNames] = useState<Record<string, string>>({});
@@ -104,12 +105,16 @@ function ClientsPage() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase
-      .from("contacts")
-      .select("id,name,phone,email,business_name,notes,assigned_to,plan_id,client_status,client_since,industry,initial_revenue,business_goals,service_type,city,created_at")
-      .eq("stage", "לקוח פעיל")
-      .in("client_status", ["active", "paused", "ended"])
-      .order("created_at", { ascending: false });
+    const sel = "id,name,phone,email,business_name,notes,assigned_to,plan_id,client_status,client_since,industry,initial_revenue,business_goals,service_type,city,created_at";
+    const [{ data }, { data: archData }] = await Promise.all([
+      supabase.from("contacts").select(sel)
+        .eq("stage", "לקוח פעיל").in("client_status", ["active", "paused", "ended"])
+        .order("created_at", { ascending: false }),
+      supabase.from("contacts").select(sel)
+        .eq("stage", "לקוח פעיל").eq("client_status", "archived")
+        .order("created_at", { ascending: false }),
+    ]);
+    setArchivedClients((archData ?? []) as unknown as Client[]);
 
     if (data) {
       setClients(data as unknown as Client[]);
@@ -192,18 +197,22 @@ function ClientsPage() {
     void load();
   }
 
-  const filtered = clients.filter((c) => {
+  const isArchiveView = statusFilter === "archived";
+  const sourceList = isArchiveView ? archivedClients : clients;
+
+  const filtered = sourceList.filter((c) => {
     const q = search.toLowerCase();
     const ms = !q || c.name.toLowerCase().includes(q) || (c.business_name ?? "").toLowerCase().includes(q);
-    const mf = statusFilter === "all" || (c.client_status ?? "active") === statusFilter;
+    const mf = isArchiveView || statusFilter === "all" || (c.client_status ?? "active") === statusFilter;
     return ms && mf;
   });
 
   const counts = {
-    all: clients.length,
-    active: clients.filter((c) => (c.client_status ?? "active") === "active").length,
-    paused: clients.filter((c) => c.client_status === "paused").length,
-    ended:  clients.filter((c) => c.client_status === "ended").length,
+    all:      clients.length,
+    active:   clients.filter((c) => (c.client_status ?? "active") === "active").length,
+    paused:   clients.filter((c) => c.client_status === "paused").length,
+    ended:    clients.filter((c) => c.client_status === "ended").length,
+    archived: archivedClients.length,
   };
 
   if (loading) {
@@ -223,8 +232,12 @@ function ClientsPage() {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">לקוחות</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">{clients.length} לקוחות</p>
+            <h1 className="text-2xl font-bold text-foreground">
+              {isArchiveView ? "ארכיון לקוחות" : "לקוחות"}
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {isArchiveView ? archivedClients.length : clients.length} לקוחות
+            </p>
           </div>
           <Button onClick={() => setShowCreate(true)}>
             <Plus className="ms-2 h-4 w-4" />
@@ -245,20 +258,26 @@ function ClientsPage() {
           </div>
           <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
             {(["all", "active", "paused", "ended"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
+              <button key={s} onClick={() => setStatusFilter(s)}
                 className={cn(
                   "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                  statusFilter === s
-                    ? "bg-primary text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
+                  statusFilter === s ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}>
                 {s === "all" ? "הכל" : STATUS_CFG[s].label}
                 <span className="ms-1.5 text-[10px] opacity-60">{counts[s]}</span>
               </button>
             ))}
+            <button onClick={() => setStatusFilter("archived")}
+              className={cn(
+                "flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                statusFilter === "archived" ? "bg-muted text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>
+              <Archive className="h-3 w-3" />
+              ארכיון
+              {counts.archived > 0 && (
+                <span className="ms-1 text-[10px] opacity-60">{counts.archived}</span>
+              )}
+            </button>
           </div>
         </div>
 

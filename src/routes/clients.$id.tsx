@@ -75,9 +75,10 @@ type Tab = "overview" | "meetings" | "plans" | "content" | "tasks";
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const CLIENT_STATUS = {
-  active: { label: "פעיל",   cls: "badge-success" },
-  paused: { label: "מושהה",  cls: "badge-warning" },
-  ended:  { label: "הסתיים", cls: "badge-urgent"  },
+  active:   { label: "פעיל",    cls: "badge-success" },
+  paused:   { label: "מושהה",   cls: "badge-warning" },
+  ended:    { label: "הסתיים",  cls: "badge-urgent"  },
+  archived: { label: "ארכיון",  cls: "badge-primary" },
 } as const;
 
 const MTG_TYPE: Record<string, string> = {
@@ -252,6 +253,16 @@ function ClientProfile() {
     setMeetings((prev) => prev.map((m) => m.id === meetingId ? { ...m, notes } : m));
   }
 
+  async function restoreClient() {
+    if (!client) return;
+    setActioning(true);
+    const { error } = await supabase.from("contacts").update({ client_status: "active" } as never).eq("id", client.id);
+    setActioning(false);
+    if (error) { toast.error("שגיאה בשחזור"); return; }
+    setClient(prev => prev ? { ...prev, client_status: "active" } : prev);
+    toast.success("הלקוח שוחזר");
+  }
+
   async function archiveClient() {
     if (!client) return;
     setActioning(true);
@@ -408,11 +419,20 @@ function ClientProfile() {
                   <Button size="sm" variant="outline" onClick={() => { setEditing(true); setTab("overview"); }}>
                     <Pencil className="me-1 h-3.5 w-3.5" />עריכה
                   </Button>
-                  <Button size="sm" variant="outline"
-                    className="border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-                    onClick={() => setShowArchive(true)}>
-                    <Archive className="h-3.5 w-3.5" />
-                  </Button>
+                  {client.client_status === "archived" ? (
+                    <Button size="sm" variant="outline"
+                      className="border-green-200 text-green-600 hover:bg-green-50 hover:text-green-700"
+                      onClick={() => void restoreClient()} disabled={actioning}>
+                      {actioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
+                      <span className="ms-1">שחזר</span>
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline"
+                      className="border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                      onClick={() => setShowArchive(true)}>
+                      <Archive className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline"
                     className="border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
                     onClick={() => setShowDelete(true)}>
