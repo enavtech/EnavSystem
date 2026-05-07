@@ -18,6 +18,7 @@ import {
   Plus, Phone, Building2, X, Loader2, Search, MapPin,
   Globe, Instagram, Facebook, UserCheck, ChevronRight, Pencil,
   Trash2, Zap, ExternalLink, Users, Settings2, ArrowUp, ArrowDown,
+  CalendarDays, ChevronDown, AlertCircle, TrendingUp, Clock,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 
@@ -113,10 +114,16 @@ function CRMPage() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [stages, setStages] = useState<string[]>(DEFAULT_STAGES);
-  const [showStages, setShowStages] = useState(false);
-  const [settingsId, setSettingsId] = useState<number | null>(null);
+  const [search,         setSearch]         = useState("");
+  const [stages,         setStages]         = useState<string[]>(DEFAULT_STAGES);
+  const [showStages,     setShowStages]     = useState(false);
+  const [settingsId,     setSettingsId]     = useState<number | null>(null);
+  const [dateFilter,     setDateFilter]     = useState<"all"|"today"|"yesterday"|"7days"|"thisMonth"|"prevMonth"|"custom">("all");
+  const [customFrom,     setCustomFrom]     = useState("");
+  const [customTo,       setCustomTo]       = useState("");
+  const [showCustomDate, setShowCustomDate] = useState(false);
+  const [sourceFilter,   setSourceFilter]   = useState("all");
+  const [assignedFilter, setAssignedFilter] = useState("all");
 
   useEffect(() => {
     if (!isAdmin()) { navigate({ to: "/login" }); return; }
@@ -142,15 +149,51 @@ function CRMPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+    const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate()-1);
+    const yesterdayEnd   = new Date(todayStart); yesterdayEnd.setMilliseconds(-1);
+    const weekAgo        = new Date(todayStart); weekAgo.setDate(weekAgo.getDate()-7);
+    const monthStart     = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
     return contacts.filter(c => {
-      if (!q) return true;
-      return (
-        c.name.toLowerCase().includes(q) ||
-        (c.business_name ?? "").toLowerCase().includes(q) ||
-        (c.phone ?? "").includes(q)
-      );
+      if (q && !c.name.toLowerCase().includes(q) &&
+          !(c.business_name ?? "").toLowerCase().includes(q) &&
+          !(c.phone ?? "").includes(q)) return false;
+      if (sourceFilter !== "all" && c.source !== sourceFilter) return false;
+      if (assignedFilter === "none" && c.assigned_to) return false;
+      if (assignedFilter !== "all" && assignedFilter !== "none" && c.assigned_to !== assignedFilter) return false;
+      if (dateFilter !== "all") {
+        const d = new Date(c.created_at);
+        if (dateFilter === "today"     && d < todayStart)                              return false;
+        if (dateFilter === "yesterday" && (d < yesterdayStart || d > yesterdayEnd))    return false;
+        if (dateFilter === "7days"     && d < weekAgo)                                 return false;
+        if (dateFilter === "thisMonth" && d < monthStart)                              return false;
+        if (dateFilter === "prevMonth" && (d < prevMonthStart || d > prevMonthEnd))    return false;
+        if (dateFilter === "custom") {
+          if (customFrom && d < new Date(customFrom + "T00:00:00")) return false;
+          if (customTo   && d > new Date(customTo   + "T23:59:59")) return false;
+        }
+      }
+      return true;
     });
-  }, [contacts, search]);
+  }, [contacts, search, dateFilter, customFrom, customTo, sourceFilter, assignedFilter]);
+
+  const kpis = useMemo(() => {
+    const now = new Date();
+    const weekAgo  = new Date(now.getTime() - 7  * 86400000).toISOString();
+    const staleAgo = new Date(now.getTime() - 5  * 86400000).toISOString();
+    const allLeads = contacts;
+    const lastStages = stages.slice(-2);
+    return {
+      total:      allLeads.length,
+      newWeek:    allLeads.filter(c => c.created_at >= weekAgo).length,
+      stale:      allLeads.filter(c => c.updated_at < staleAgo).length,
+      hot:        allLeads.filter(c => lastStages.includes(c.stage)).length,
+    };
+  }, [contacts, stages]);
 
   const grouped = useMemo(() => {
     const map: Record<string, Contact[]> = {};
@@ -246,7 +289,9 @@ function CRMPage() {
       <Toaster position="top-center" dir="rtl" />
 
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="border-b border-border bg-background px-6 py-4" style={{ direction: "rtl" }}>
+      <div className="border-b border-border bg-background px-6 py-4 space-y-3" style={{ direction: "rtl" }}>
+
+        {/* Row 1: title + actions */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold text-foreground">לידים</h1>
@@ -256,15 +301,14 @@ function CRMPage() {
             <div className="relative">
               <Search className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="חיפוש..." className="h-9 w-48 pe-9 text-sm" />
+                placeholder="חיפוש שם, טלפון..." className="h-9 w-52 pe-9 text-sm" />
               {search && (
                 <button onClick={() => setSearch("")} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X className="h-3 w-3" />
                 </button>
               )}
             </div>
-            <Button size="sm" variant="ghost" className="cursor-pointer h-9 gap-1.5"
-              onClick={() => setShowStages(true)}>
+            <Button size="sm" variant="ghost" className="cursor-pointer h-9 gap-1.5" onClick={() => setShowStages(true)}>
               <Settings2 className="h-4 w-4" /> שלבים
             </Button>
             <Button size="sm" className="cursor-pointer h-9 gap-1.5"
@@ -274,8 +318,82 @@ function CRMPage() {
           </div>
         </div>
 
-        {/* Stage stats */}
-        <div className="mt-3 flex items-center gap-4 overflow-x-auto">
+        {/* Row 2: KPI chips */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: "סה״כ לידים",      val: kpis.total,   icon: <Users className="h-3.5 w-3.5" />,       color: "text-foreground",     bg: "bg-muted/60" },
+            { label: "חדשים השבוע",     val: kpis.newWeek, icon: <TrendingUp className="h-3.5 w-3.5" />,  color: "text-blue-600",       bg: "bg-blue-50 dark:bg-blue-950/30" },
+            { label: "ממתינים לטיפול", val: kpis.stale,   icon: <AlertCircle className="h-3.5 w-3.5" />, color: "text-amber-600",      bg: "bg-amber-50 dark:bg-amber-950/30" },
+            { label: "חמים (שלבים אחרונים)", val: kpis.hot, icon: <Zap className="h-3.5 w-3.5" />,      color: "text-emerald-600",    bg: "bg-emerald-50 dark:bg-emerald-950/30" },
+          ].map(k => (
+            <div key={k.label} className={cn("flex items-center gap-2 rounded-xl px-3 py-1.5", k.bg)}>
+              <span className={k.color}>{k.icon}</span>
+              <span className={cn("text-lg font-bold tabular-nums leading-none", k.color)}>{k.val}</span>
+              <span className="text-[11px] text-muted-foreground">{k.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Row 3: date + source + assigned filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Date filter pills */}
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+            <CalendarDays className="mx-1 h-3.5 w-3.5 text-muted-foreground" />
+            {([
+              { key: "all",       label: "הכל" },
+              { key: "today",     label: "היום" },
+              { key: "yesterday", label: "אתמול" },
+              { key: "7days",     label: "7 ימים" },
+              { key: "thisMonth", label: "חודש זה" },
+              { key: "prevMonth", label: "חודש קודם" },
+              { key: "custom",    label: "מותאם" },
+            ] as const).map(({ key, label }) => (
+              <button key={key}
+                onClick={() => { setDateFilter(key); setShowCustomDate(key === "custom"); }}
+                className={cn("rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap",
+                  dateFilter === key ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom date range */}
+          {dateFilter === "custom" && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1">
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                className="h-7 rounded border-0 bg-transparent text-xs text-foreground outline-none" />
+              <span className="text-xs text-muted-foreground">—</span>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                className="h-7 rounded border-0 bg-transparent text-xs text-foreground outline-none" />
+            </div>
+          )}
+
+          {/* Source filter */}
+          <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}
+            className="h-9 cursor-pointer rounded-lg border border-border bg-card px-2 text-xs text-foreground focus:outline-none">
+            <option value="all">כל המקורות</option>
+            {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          {/* Assigned filter */}
+          <select value={assignedFilter} onChange={e => setAssignedFilter(e.target.value)}
+            className="h-9 cursor-pointer rounded-lg border border-border bg-card px-2 text-xs text-foreground focus:outline-none">
+            <option value="all">כל האחראים</option>
+            <option value="none">לא משויך</option>
+            {TEAM_MEMBERS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+
+          {/* Active filters badge */}
+          {(dateFilter !== "all" || sourceFilter !== "all" || assignedFilter !== "all" || search) && (
+            <button onClick={() => { setDateFilter("all"); setSourceFilter("all"); setAssignedFilter("all"); setSearch(""); setCustomFrom(""); setCustomTo(""); }}
+              className="flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+              <X className="h-3 w-3" /> נקה פילטרים
+            </button>
+          )}
+        </div>
+
+        {/* Row 4: Stage stats */}
+        <div className="flex items-center gap-4 overflow-x-auto">
           {stages.map((s, idx) => {
             const m = stageColor(idx);
             const count = grouped[s]?.length ?? 0;
@@ -287,7 +405,7 @@ function CRMPage() {
               </div>
             );
           })}
-          <span className="ms-auto text-xs text-muted-foreground">{filtered.filter(c => c.stage !== "לקוח פעיל").length} סה״כ</span>
+          <span className="ms-auto text-xs text-muted-foreground">{filtered.length} מוצגים</span>
         </div>
       </div>
 
@@ -333,6 +451,10 @@ function CRMPage() {
                   <div className="flex flex-col gap-2 overflow-y-auto px-2.5 pb-2.5">
                     {cards.map(c => {
                       const isSelected = selectedId === c.id;
+                      const ageMs   = Date.now() - new Date(c.created_at).getTime();
+                      const ageDays = Math.floor(ageMs / 86400000);
+                      const staleMs = Date.now() - new Date(c.updated_at).getTime();
+                      const isStale = staleMs > 5 * 86400000;
                       return (
                         <div key={c.id}
                           draggable
@@ -342,32 +464,53 @@ function CRMPage() {
                           className={cn(
                             "group cursor-pointer rounded-xl border bg-background p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-[1px]",
                             isSelected ? "border-primary ring-2 ring-primary/20" : "border-border",
+                            isStale && !isSelected && "border-amber-200 bg-amber-50/30 dark:border-amber-900/50 dark:bg-amber-950/10",
                             dragId === c.id && "opacity-40 scale-95"
                           )}
                           style={isSelected ? { borderColor: m.color, boxShadow: `0 0 0 2px ${m.color}25` } : {}}
                         >
                           <div className="flex items-start justify-between gap-1.5">
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="truncate text-sm font-semibold text-foreground">{c.name}</div>
                               {c.business_name && (
                                 <div className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-                                  <Building2 className="h-3 w-3 shrink-0" />
-                                  {c.business_name}
+                                  <Building2 className="h-3 w-3 shrink-0" />{c.business_name}
                                 </div>
                               )}
                             </div>
-                            {c.meta_lead_id && (
-                              <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                                style={{ background: "#1877f218", color: "#1877f2" }}>META</span>
-                            )}
+                            <div className="flex shrink-0 flex-col items-end gap-1">
+                              {c.meta_lead_id && (
+                                <span className="rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                                  style={{ background: "#1877f218", color: "#1877f2" }}>META</span>
+                              )}
+                              {isStale && (
+                                <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                                  עומד
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
-                            {c.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</span>}
+                            {c.phone && (
+                              <a href={`https://wa.me/972${c.phone.replace(/^0/, "").replace(/\D/g,"")}`}
+                                target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="flex items-center gap-0.5 rounded px-1 py-0.5 hover:bg-green-100 hover:text-green-700 transition-colors"
+                                title="WhatsApp">
+                                <Phone className="h-3 w-3" />{c.phone}
+                              </a>
+                            )}
                             {c.city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{c.city}</span>}
                           </div>
-                          {c.assigned_to && (
-                            <div className="mt-1.5 text-[10px] text-muted-foreground/60">← {c.assigned_to}</div>
-                          )}
+                          <div className="mt-1.5 flex items-center justify-between">
+                            {c.assigned_to
+                              ? <span className="text-[10px] text-muted-foreground/60">← {c.assigned_to}</span>
+                              : <span />}
+                            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/50">
+                              <Clock className="h-2.5 w-2.5" />
+                              {ageDays === 0 ? "היום" : ageDays === 1 ? "אתמול" : `${ageDays} ימים`}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}
@@ -733,9 +876,35 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
             />
           </section>
 
-          {/* Created */}
-          <div className="text-[11px] text-muted-foreground/50 pb-2">
-            נוצר: {new Date(contact.created_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+          {/* Dates */}
+          <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-1.5 pb-2">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground/70 flex items-center gap-1">
+                <CalendarDays className="h-3 w-3" /> תאריך יצירת ליד
+              </span>
+              <span className="font-medium text-foreground">
+                {new Date(contact.created_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground/70 flex items-center gap-1">
+                <Clock className="h-3 w-3" /> עדכון אחרון
+              </span>
+              <span className="font-medium text-foreground">
+                {new Date(contact.updated_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+              </span>
+            </div>
+            {(() => {
+              const ageDays = Math.floor((Date.now() - new Date(contact.created_at).getTime()) / 86400000);
+              return (
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-muted-foreground/70">גיל ליד</span>
+                  <span className="font-medium text-foreground">
+                    {ageDays === 0 ? "היום" : ageDays === 1 ? "יום אחד" : `${ageDays} ימים`}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
