@@ -68,6 +68,8 @@ export type Contact = {
   form_name: string | null;
   ad_name: string | null;
   campaign_name: string | null;
+  // Editable lead date
+  lead_date: string | null;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -95,9 +97,12 @@ function stageColor(idx: number) {
 const SOURCES = ["ידני", "מטא", "אורגני", "פרסום", "הפניה", "אחר"];
 const TEAM_MEMBERS = ["ענב", "אוריאל", "דניאל"];
 
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
 const EMPTY_FORM = {
   name: "", phone: "", email: "", business_name: "",
   source: "ידני", stage: DEFAULT_STAGES[0], assigned_to: "", notes: "",
+  lead_date: todayStr(),
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -136,7 +141,7 @@ function CRMPage() {
       supabase.from("contacts").select("*").neq("stage", CLIENT_STAGE).order("created_at", { ascending: false }),
       supabase.from("app_settings").select("id,lead_stages").limit(1).single(),
     ]);
-    setContacts((contactsRes.data ?? []) as Contact[]);
+    setContacts((contactsRes.data ?? []) as unknown as Contact[]);
     if (settingsRes.data) {
       setSettingsId(settingsRes.data.id);
       const ls = settingsRes.data.lead_stages;
@@ -166,7 +171,7 @@ function CRMPage() {
       if (assignedFilter === "none" && c.assigned_to) return false;
       if (assignedFilter !== "all" && assignedFilter !== "none" && c.assigned_to !== assignedFilter) return false;
       if (dateFilter !== "all") {
-        const d = new Date(c.created_at);
+        const d = new Date(c.lead_date ?? c.created_at);
         if (dateFilter === "today"     && d < todayStart)                              return false;
         if (dateFilter === "yesterday" && (d < yesterdayStart || d > yesterdayEnd))    return false;
         if (dateFilter === "7days"     && d < weekAgo)                                 return false;
@@ -218,13 +223,14 @@ function CRMPage() {
       stage: form.stage,
       assigned_to: form.assigned_to || null,
       notes: form.notes.trim() || null,
+      lead_date: form.lead_date || todayStr(),
       updated_at: new Date().toISOString(),
     };
     if (editContact) {
-      const { error } = await supabase.from("contacts").update(payload).eq("id", editContact.id);
+      const { error } = await supabase.from("contacts").update(payload as never).eq("id", editContact.id);
       if (error) toast.error(error.message); else toast.success("עודכן");
     } else {
-      const { error } = await supabase.from("contacts").insert(payload);
+      const { error } = await supabase.from("contacts").insert(payload as never);
       if (error) toast.error(error.message); else toast.success("ליד נוצר");
     }
     setSaving(false);
@@ -236,7 +242,7 @@ function CRMPage() {
 
   // Auto-save single field for selected lead
   const saveField = useCallback(async (id: string, patch: Partial<Contact>) => {
-    await supabase.from("contacts").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+    await supabase.from("contacts").update({ ...patch, updated_at: new Date().toISOString() } as never).eq("id", id);
     setContacts(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
   }, []);
 
@@ -436,7 +442,7 @@ function CRMPage() {
                   <div className="flex flex-col gap-2 overflow-y-auto px-2.5 pb-2.5">
                     {cards.map(c => {
                       const isSelected = selectedId === c.id;
-                      const ageMs   = Date.now() - new Date(c.created_at).getTime();
+                      const ageMs   = Date.now() - new Date(c.lead_date ?? c.created_at).getTime();
                       const ageDays = Math.floor(ageMs / 86400000);
                       const staleMs = Date.now() - new Date(c.updated_at).getTime();
                       const isStale = staleMs > 5 * 86400000;
@@ -527,6 +533,7 @@ function CRMPage() {
                 email: selected.email ?? "", business_name: selected.business_name ?? "",
                 source: selected.source, stage: selected.stage,
                 assigned_to: selected.assigned_to ?? "", notes: selected.notes ?? "",
+                lead_date: selected.lead_date ?? todayStr(),
               });
               setEditContact(selected);
               setShowAdd(true);
@@ -572,7 +579,11 @@ function CRMPage() {
                 <Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="mail@example.com" dir="ltr" />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">תאריך יצירת ליד</label>
+                <Input type="date" value={form.lead_date} onChange={e => setForm({ ...form, lead_date: e.target.value })} className="h-9" />
+              </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">מקור</label>
                 <Select value={form.source} onValueChange={v => setForm({ ...form, source: v })}>
@@ -580,6 +591,8 @@ function CRMPage() {
                   <SelectContent>{SOURCES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">שלב</label>
                 <Select value={form.stage} onValueChange={v => setForm({ ...form, stage: v })}>
@@ -862,29 +875,34 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
           </section>
 
           {/* Dates */}
-          <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-1.5 pb-2">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-muted-foreground/70 flex items-center gap-1">
+          <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <label className="flex items-center gap-1 text-[11px] text-muted-foreground/70 shrink-0">
                 <CalendarDays className="h-3 w-3" /> תאריך יצירת ליד
-              </span>
-              <span className="font-medium text-foreground">
-                {new Date(contact.created_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
-              </span>
+              </label>
+              <input
+                type="date"
+                value={f.lead_date !== undefined ? (f.lead_date ?? "") : (contact.lead_date ?? todayStr())}
+                onChange={e => setF(prev => ({ ...prev, lead_date: e.target.value }))}
+                onBlur={() => void blur("lead_date" as keyof Contact)}
+                className="h-7 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground/70 flex items-center gap-1">
                 <Clock className="h-3 w-3" /> עדכון אחרון
               </span>
-              <span className="font-medium text-foreground">
+              <span className="text-foreground">
                 {new Date(contact.updated_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
               </span>
             </div>
             {(() => {
-              const ageDays = Math.floor((Date.now() - new Date(contact.created_at).getTime()) / 86400000);
+              const ref = contact.lead_date ?? contact.created_at;
+              const ageDays = Math.floor((Date.now() - new Date(ref).getTime()) / 86400000);
               return (
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-muted-foreground/70">גיל ליד</span>
-                  <span className="font-medium text-foreground">
+                  <span className="text-foreground">
                     {ageDays === 0 ? "היום" : ageDays === 1 ? "יום אחד" : `${ageDays} ימים`}
                   </span>
                 </div>
