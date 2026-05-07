@@ -19,6 +19,7 @@ import {
   Globe, Instagram, Facebook, UserCheck, ChevronRight, Pencil,
   Trash2, Zap, ExternalLink, Users, Settings2, ArrowUp, ArrowDown,
   CalendarDays, ChevronDown, AlertCircle, TrendingUp, Clock,
+  MessageSquare, Mail, MessageCircle, ArrowRightLeft,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 
@@ -70,6 +71,20 @@ export type Contact = {
   campaign_name: string | null;
   // Editable lead date
   lead_date: string | null;
+};
+
+// ─── Activity types ────────────────────────────────────────────────────────────
+
+export type ActivityType = "call" | "whatsapp" | "email" | "note" | "stage_change" | "meeting" | "conversion";
+
+export type Activity = {
+  id: string;
+  contact_id: string;
+  type: ActivityType;
+  content: string | null;
+  created_by: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -129,11 +144,26 @@ function CRMPage() {
   const [showCustomDate, setShowCustomDate] = useState(false);
   const [sourceFilter,   setSourceFilter]   = useState("all");
   const [assignedFilter, setAssignedFilter] = useState("all");
+  const [activities,        setActivities]        = useState<Activity[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
 
   useEffect(() => {
     if (!isAdmin()) { navigate({ to: "/login" }); return; }
     void load();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!selectedId) { setActivities([]); return; }
+    setActivitiesLoading(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    void (supabase as any).from("activities").select("*")
+      .eq("contact_id", selectedId)
+      .order("created_at", { ascending: false })
+      .then(({ data }: { data: Activity[] | null }) => {
+        setActivities(data ?? []);
+        setActivitiesLoading(false);
+      });
+  }, [selectedId]);
 
   async function load() {
     setLoading(true);
@@ -253,9 +283,25 @@ function CRMPage() {
     void load();
   }
 
+  async function addActivity(contactId: string, type: ActivityType, content: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any).from("activities").insert({
+      contact_id: contactId,
+      type,
+      content: content || null,
+    }).select().single() as { data: Activity | null };
+    if (data && selectedId === contactId) {
+      setActivities(prev => [data, ...prev]);
+    }
+  }
+
   async function moveStage(id: string, stage: string) {
+    const prevStage = contacts.find(c => c.id === id)?.stage;
     await supabase.from("contacts").update({ stage, updated_at: new Date().toISOString() }).eq("id", id);
     setContacts(prev => prev.map(c => c.id === id ? { ...c, stage } : c));
+    if (prevStage && prevStage !== stage) {
+      void addActivity(id, "stage_change", `${prevStage} ← ${stage}`);
+    }
   }
 
   async function convertToClient(contact: Contact) {
@@ -269,6 +315,7 @@ function CRMPage() {
     }).eq("id", contact.id);
     setConverting(false);
     if (error) { toast.error(error.message); return; }
+    void addActivity(contact.id, "conversion", `${contact.name} הומר ללקוח פעיל`);
     toast.success(`${contact.name} הועבר ללקוחות!`);
     setSelectedId(null);
     void load();
@@ -539,6 +586,9 @@ function CRMPage() {
               setShowAdd(true);
             }}
             converting={converting}
+            activities={activities}
+            activitiesLoading={activitiesLoading}
+            onAddActivity={(type, content) => addActivity(selected.id, type, content)}
           />
         )}
       </div>
@@ -629,6 +679,129 @@ function CRMPage() {
   );
 }
 
+// ─── Activity metadata ────────────────────────────────────────────────────────
+
+const ACTIVITY_TYPES: { type: ActivityType; label: string; icon: React.ReactNode; color: string }[] = [
+  { type: "note",     label: "הערה",     icon: <MessageSquare className="h-3.5 w-3.5" />, color: "#64748b" },
+  { type: "call",     label: "שיחה",     icon: <Phone className="h-3.5 w-3.5" />,         color: "#3b82f6" },
+  { type: "whatsapp", label: "WhatsApp", icon: <MessageCircle className="h-3.5 w-3.5" />, color: "#25d366" },
+  { type: "email",    label: "מייל",     icon: <Mail className="h-3.5 w-3.5" />,          color: "#8b5cf6" },
+  { type: "meeting",  label: "פגישה",    icon: <CalendarDays className="h-3.5 w-3.5" />,  color: "#6366f1" },
+];
+
+const ACTIVITY_META: Record<ActivityType, { icon: React.ReactNode; color: string; label: string }> = {
+  call:         { icon: <Phone className="h-3.5 w-3.5" />,          color: "#3b82f6", label: "שיחה" },
+  whatsapp:     { icon: <MessageCircle className="h-3.5 w-3.5" />,  color: "#25d366", label: "WhatsApp" },
+  email:        { icon: <Mail className="h-3.5 w-3.5" />,           color: "#8b5cf6", label: "מייל" },
+  note:         { icon: <MessageSquare className="h-3.5 w-3.5" />,  color: "#64748b", label: "הערה" },
+  stage_change: { icon: <ArrowRightLeft className="h-3.5 w-3.5" />, color: "#f59e0b", label: "שינוי שלב" },
+  meeting:      { icon: <CalendarDays className="h-3.5 w-3.5" />,   color: "#6366f1", label: "פגישה" },
+  conversion:   { icon: <UserCheck className="h-3.5 w-3.5" />,      color: "#10b981", label: "המרה" },
+};
+
+function relativeTime(iso: string) {
+  const diffMs  = Date.now() - new Date(iso).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr  = Math.floor(diffMs / 3600000);
+  const diffDay = Math.floor(diffMs / 86400000);
+  if (diffMin < 1) return "עכשיו";
+  if (diffMin < 60) return `${diffMin}ד׳`;
+  if (diffHr < 24) return `${diffHr}ש׳`;
+  if (diffDay === 1) return "אתמול";
+  return `${diffDay} ימים`;
+}
+
+// ─── Quick log ────────────────────────────────────────────────────────────────
+
+function QuickLog({ onAdd }: { onAdd: (type: ActivityType, content: string) => Promise<void> }) {
+  const [type, setType] = useState<ActivityType>("note");
+  const [content, setContent] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    if (!content.trim()) return;
+    setSaving(true);
+    await onAdd(type, content.trim());
+    setContent("");
+    setSaving(false);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1">
+        {ACTIVITY_TYPES.map(t => (
+          <button key={t.type} onClick={() => setType(t.type)}
+            className={cn("flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all cursor-pointer",
+              type === t.type ? "text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted")}
+            style={type === t.type ? { background: t.color } : {}}>
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+      <Textarea
+        value={content}
+        onChange={e => setContent(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { void submit(); } }}
+        placeholder="רשום פרטים… (Ctrl+Enter לשמירה)"
+        className="min-h-[68px] bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background resize-none"
+      />
+      <Button size="sm" className="cursor-pointer w-full gap-1.5" onClick={submit} disabled={saving || !content.trim()}>
+        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+        הוסף לוג
+      </Button>
+    </div>
+  );
+}
+
+// ─── Activity feed ────────────────────────────────────────────────────────────
+
+function ActivityFeed({ activities, loading }: { activities: Activity[]; loading: boolean }) {
+  if (loading) return (
+    <div className="flex justify-center py-6">
+      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+    </div>
+  );
+
+  if (!activities.length) return (
+    <div className="rounded-xl border-2 border-dashed border-border py-6 text-center text-xs text-muted-foreground/50">
+      אין פעילות עדיין
+    </div>
+  );
+
+  return (
+    <div className="space-y-1">
+      {activities.map((a, idx) => {
+        const meta = ACTIVITY_META[a.type] ?? ACTIVITY_META.note;
+        return (
+          <div key={a.id} className="flex gap-2.5">
+            <div className="flex flex-col items-center">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                style={{ background: `${meta.color}18`, color: meta.color, border: `1.5px solid ${meta.color}35` }}>
+                {meta.icon}
+              </div>
+              {idx < activities.length - 1 && (
+                <div className="my-1 flex-1 w-px bg-border/40" style={{ minHeight: 10 }} />
+              )}
+            </div>
+            <div className="flex-1 pb-2 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+                <span className="text-[10px] text-muted-foreground/60 shrink-0">{relativeTime(a.created_at)}</span>
+              </div>
+              {a.content && (
+                <p className="mt-0.5 text-xs text-foreground/80 leading-relaxed break-words whitespace-pre-wrap">{a.content}</p>
+              )}
+              {a.created_by && (
+                <p className="mt-0.5 text-[10px] text-muted-foreground/50">← {a.created_by}</p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Standalone field — must live outside LeadDetail to avoid focus loss ──────
 
 function LeadField({ label, value, onChange, onBlur, placeholder, dir: d }: {
@@ -649,7 +822,7 @@ function LeadField({ label, value, onChange, onBlur, placeholder, dir: d }: {
 
 // ─── Lead detail panel ────────────────────────────────────────────────────────
 
-function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConvert, onDelete, onEditBasic, converting }: {
+function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConvert, onDelete, onEditBasic, converting, activities, activitiesLoading, onAddActivity }: {
   contact: Contact;
   stages: string[];
   onClose: () => void;
@@ -659,6 +832,9 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
   onDelete: () => void;
   onEditBasic: () => void;
   converting: boolean;
+  activities: Activity[];
+  activitiesLoading: boolean;
+  onAddActivity: (type: ActivityType, content: string) => Promise<void>;
 }) {
   // Local state per-field for controlled inputs with onBlur save
   const [f, setF] = useState<Partial<Contact>>({});
@@ -909,6 +1085,16 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
               );
             })()}
           </div>
+
+          {/* Activity timeline */}
+          <section>
+            <SectionTitle icon={<MessageSquare className="h-3.5 w-3.5" />} title="פעילות" />
+            <QuickLog onAdd={onAddActivity} />
+            <div className="mt-4">
+              <ActivityFeed activities={activities} loading={activitiesLoading} />
+            </div>
+          </section>
+
         </div>
       </div>
     </div>

@@ -13,6 +13,10 @@ import {
   Clock,
   ArrowUpRight,
   Circle,
+  Banknote,
+  ArrowUp,
+  ArrowDown,
+  Minus,
 } from "lucide-react";
 import {
   BarChart,
@@ -29,6 +33,18 @@ export const Route = createFileRoute("/")({
 });
 
 // ── Types ──────────────────────────────────────────────────────────────
+
+interface ContactRow {
+  stage: string;
+  source: string;
+  monthly_fee: string | null;
+  client_since: string | null;
+  client_status: string | null;
+  name: string;
+  lead_date: string | null;
+  created_at: string;
+}
+
 interface KPI {
   label: string;
   value: number | string;
@@ -149,6 +165,11 @@ function Index() {
   const [openTasks, setOpenTasks]               = useState(0);
   const [overdueTasks, setOverdueTasks]         = useState(0);
   const [closedDeals, setClosedDeals]           = useState(0);
+  const [totalMRR, setTotalMRR]               = useState(0);
+  const [leadsThisMonth, setLeadsThisMonth]   = useState(0);
+  const [leadsLastMonth, setLeadsLastMonth]   = useState(0);
+  const [convertedThisMonth, setConvertedThisMonth] = useState(0);
+  const [mrrByClient, setMrrByClient]         = useState<{ name: string; fee: number }[]>([]);
 
   // Chart data
   const [stageData, setStageData]             = useState<ContactStage[]>([]);
@@ -174,7 +195,7 @@ function Index() {
       internalTasksRes,
       teamRes,
     ] = await Promise.all([
-      supabase.from("contacts").select("stage, source"),
+      supabase.from("contacts").select("stage, source, monthly_fee, client_since, client_status, name, lead_date, created_at"),
       supabase.from("tasks").select("status, deadline"),
       supabase
         .from("meetings")
@@ -191,19 +212,57 @@ function Index() {
 
     // ── Contacts ──────────────────────────────────────────────────────
     if (contactsRes.data) {
-      const contacts = contactsRes.data;
+      const contacts = contactsRes.data as unknown as ContactRow[];
+      const now = new Date();
+      const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonthStr = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+
       const total = contacts.length;
       const active = contacts.filter((c) => c.stage === "לקוח פעיל").length;
       const notRelevant = contacts.filter((c) => c.stage === "לא רלוונטי").length;
-      const closed = active;
       const pipeline = total - notRelevant;
 
       setTotalLeads(total);
       setActiveClients(active);
-      setClosedDeals(closed);
+      setClosedDeals(active);
       setConversionRate(pipeline > 0 ? Math.round((active / pipeline) * 100) : 0);
 
-      // Stage distribution (excluding "לא רלוונטי" for funnel)
+      // MRR — parse monthly_fee from active non-archived clients
+      const parseFee = (fee: string | null | undefined) =>
+        fee ? parseFloat(String(fee).replace(/[^\d.]/g, "")) || 0 : 0;
+      const activeClients = contacts.filter(
+        (c) => c.stage === "לקוח פעיל" && c.client_status !== "archived"
+      );
+      const mrr = activeClients.reduce((sum, c) => sum + parseFee(c.monthly_fee), 0);
+      setTotalMRR(mrr);
+      setMrrByClient(
+        activeClients
+          .map((c) => ({ name: c.name, fee: parseFee(c.monthly_fee) }))
+          .filter((c) => c.fee > 0)
+          .sort((a, b) => b.fee - a.fee)
+          .slice(0, 8)
+      );
+
+      // Monthly lead analytics
+      const leads = contacts.filter((c) => c.stage !== "לקוח פעיל");
+      const leadsThisMo = leads.filter((c) => {
+        const d = c.lead_date ?? c.created_at ?? "";
+        return d.startsWith(thisMonthStr);
+      }).length;
+      const leadsLastMo = leads.filter((c) => {
+        const d = c.lead_date ?? c.created_at ?? "";
+        return d.startsWith(prevMonthStr);
+      }).length;
+      const convertedThisMo = activeClients.filter((c) => {
+        const d = c.client_since ?? "";
+        return d.startsWith(thisMonthStr);
+      }).length;
+      setLeadsThisMonth(leadsThisMo);
+      setLeadsLastMonth(leadsLastMo);
+      setConvertedThisMonth(convertedThisMo);
+
+      // Stage distribution
       const stageCounts: Record<string, number> = {};
       for (const c of contacts) {
         stageCounts[c.stage] = (stageCounts[c.stage] ?? 0) + 1;
@@ -329,12 +388,20 @@ function Index() {
       bg: "bg-primary/8",
     },
     {
+      label: "MRR",
+      value: totalMRR > 0 ? `₪${totalMRR.toLocaleString("he-IL")}` : "₪0",
+      sub: convertedThisMonth > 0 ? `+${convertedThisMonth} לקוחות החודש` : `${activeClients} לקוחות פעילים`,
+      icon: Banknote,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50 dark:bg-emerald-950/30",
+    },
+    {
       label: "שיעור המרה",
       value: `${conversionRate}%`,
-      sub: `${closedDeals} עסקאות סגורות`,
+      sub: `${closedDeals} לקוחות סגורים`,
       icon: TrendingUp,
-      color: "text-emerald-600",
-      bg: "bg-emerald-50",
+      color: "text-blue-600",
+      bg: "bg-blue-50 dark:bg-blue-950/30",
     },
     {
       label: "פגישות השבוע",
@@ -397,7 +464,7 @@ function Index() {
         ) : (
           <div className="space-y-6">
             {/* ── KPI strip ────────────────────────────────────── */}
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
               {kpis.map((kpi) => (
                 <div key={kpi.label} className="glass rounded-2xl p-4">
                   <div className="flex items-start justify-between">
@@ -676,6 +743,129 @@ function Index() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* ── Row 4: Revenue + Monthly analytics ───────────── */}
+            <div className="grid gap-4 lg:grid-cols-2">
+
+              {/* MRR breakdown */}
+              <div className="glass rounded-2xl p-5">
+                <div className="mb-1 flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-foreground">הכנסות חודשיות (MRR)</h2>
+                  <Banknote className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="mb-4 text-xs text-muted-foreground">סה"כ מלקוחות פעילים</p>
+
+                {/* Big MRR number */}
+                <div className="mb-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 p-4 text-center">
+                  <div className="text-3xl font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                    ₪{totalMRR.toLocaleString("he-IL")}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">הכנסה חודשית חוזרת</div>
+                </div>
+
+                {/* Per-client breakdown */}
+                {mrrByClient.length === 0 ? (
+                  <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+                    אין נתוני עלות חודשית ללקוחות
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {mrrByClient.map(({ name, fee }) => {
+                      const pct = totalMRR > 0 ? Math.round((fee / totalMRR) * 100) : 0;
+                      return (
+                        <div key={name} className="flex items-center gap-3">
+                          <span className="w-28 shrink-0 truncate text-right text-xs text-muted-foreground">{name}</span>
+                          <div className="flex-1 overflow-hidden rounded-full bg-muted/60 h-2">
+                            <div className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+                              style={{ width: `${Math.max(pct, fee > 0 ? 3 : 0)}%` }} />
+                          </div>
+                          <span className="w-20 shrink-0 text-left text-xs font-semibold text-foreground tabular-nums">
+                            ₪{fee.toLocaleString("he-IL")}
+                          </span>
+                          <span className="w-8 shrink-0 text-right text-[10px] text-muted-foreground">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                    {mrrByClient.length > 0 && (
+                      <div className="mt-3 border-t border-border/50 pt-2.5 flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">ממוצע ללקוח</span>
+                        <span className="font-semibold text-foreground tabular-nums">
+                          ₪{activeClients > 0 ? Math.round(totalMRR / activeClients).toLocaleString("he-IL") : 0}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Monthly performance */}
+              <div className="glass rounded-2xl p-5">
+                <div className="mb-1 flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-foreground">ביצועים חודשיים</h2>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="mb-4 text-xs text-muted-foreground">
+                  {new Date().toLocaleDateString("he-IL", { month: "long", year: "numeric" })} vs חודש קודם
+                </p>
+
+                {/* Lead comparison */}
+                <div className="mb-4 grid grid-cols-3 gap-3">
+                  {(() => {
+                    const diff = leadsThisMonth - leadsLastMonth;
+                    const DiffIcon = diff > 0 ? ArrowUp : diff < 0 ? ArrowDown : Minus;
+                    const diffColor = diff > 0 ? "text-emerald-600" : diff < 0 ? "text-rose-500" : "text-muted-foreground";
+                    return (
+                      <>
+                        <div className="glass-subtle rounded-xl p-3 text-center">
+                          <div className="text-2xl font-bold text-foreground tabular-nums">{leadsThisMonth}</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">לידים החודש</div>
+                        </div>
+                        <div className="glass-subtle rounded-xl p-3 text-center">
+                          <div className="text-2xl font-bold text-muted-foreground/60 tabular-nums">{leadsLastMonth}</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">חודש קודם</div>
+                        </div>
+                        <div className="glass-subtle rounded-xl p-3 text-center">
+                          <div className={cn("flex items-center justify-center gap-0.5 text-2xl font-bold tabular-nums", diffColor)}>
+                            <DiffIcon className="h-4 w-4" />
+                            {Math.abs(diff)}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">שינוי</div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Conversion this month */}
+                <div className="mb-4 flex items-center gap-3 rounded-xl bg-primary/5 px-4 py-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                    <Users className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-foreground tabular-nums">{convertedThisMonth}</div>
+                    <div className="text-xs text-muted-foreground">לקוחות חדשים הצטרפו החודש</div>
+                  </div>
+                  {convertedThisMonth > 0 && (
+                    <div className="ms-auto text-xs font-semibold text-emerald-600">
+                      +₪{(convertedThisMonth * (activeClients > 0 ? Math.round(totalMRR / activeClients) : 0)).toLocaleString("he-IL")} MRR
+                    </div>
+                  )}
+                </div>
+
+                {/* Conversion rate */}
+                <div className="rounded-xl border border-border/50 px-4 py-3 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">שיעור המרה כולל</span>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-24 overflow-hidden rounded-full bg-muted/60">
+                      <div className="h-full rounded-full bg-primary transition-all duration-500"
+                        style={{ width: `${conversionRate}%` }} />
+                    </div>
+                    <span className="text-sm font-bold text-foreground tabular-nums">{conversionRate}%</span>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         )}
