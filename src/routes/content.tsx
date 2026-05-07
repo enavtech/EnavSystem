@@ -127,7 +127,8 @@ function ContentPage() {
     const [{ data: sdData }, { data: vidData }, { data: cData }] = await Promise.all([
       supabase.from("shoot_days").select("*").order("shoot_date", { ascending: false, nullsFirst: false }),
       supabase.from("shoot_videos").select("*").order("position"),
-      supabase.from("contacts").select("id,name,business_name").order("name"),
+      supabase.from("contacts").select("id,name,business_name")
+        .in("client_status", ["active", "paused"]).order("name"),
     ]);
     const days = (sdData ?? []) as Omit<ShootDay, "videos">[];
     const vids = (vidData ?? []) as ShootVideo[];
