@@ -392,21 +392,6 @@ function CRMPage() {
           )}
         </div>
 
-        {/* Row 4: Stage stats */}
-        <div className="flex items-center gap-4 overflow-x-auto">
-          {stages.map((s, idx) => {
-            const m = stageColor(idx);
-            const count = grouped[s]?.length ?? 0;
-            return (
-              <div key={s} className="flex items-center gap-1.5 whitespace-nowrap">
-                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
-                <span className="text-xs text-muted-foreground">{s}</span>
-                <span className="text-xs font-bold tabular-nums" style={{ color: m.color }}>{count}</span>
-              </div>
-            );
-          })}
-          <span className="ms-auto text-xs text-muted-foreground">{filtered.length} מוצגים</span>
-        </div>
       </div>
 
       {/* ── Main area ──────────────────────────────────────────── */}
