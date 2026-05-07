@@ -488,6 +488,24 @@ function CRMPage() {
   );
 }
 
+// ─── Standalone field — must live outside LeadDetail to avoid focus loss ──────
+
+function LeadField({ label, value, onChange, onBlur, placeholder, dir: d }: {
+  label: string; value: string;
+  onChange: (v: string) => void; onBlur: () => void;
+  placeholder?: string; dir?: "ltr" | "rtl";
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{label}</label>
+      <Input value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur}
+        placeholder={placeholder} dir={d}
+        className="h-9 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
+      />
+    </div>
+  );
+}
+
 // ─── Lead detail panel ────────────────────────────────────────────────────────
 
 function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConvert, onDelete, onEditBasic, converting }: {
@@ -520,22 +538,6 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
     const v = f[key];
     if (v === (contact[key] ?? "")) return;
     await onSaveField({ [key]: (v === "" ? null : v) } as Partial<Contact>);
-  }
-
-  function Field({ label, field, placeholder, dir: d }: { label: string; field: keyof Contact; placeholder?: string; dir?: "ltr" | "rtl" }) {
-    return (
-      <div>
-        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{label}</label>
-        <Input
-          value={val(field)}
-          onChange={e => change(field, e.target.value)}
-          onBlur={() => void blur(field)}
-          placeholder={placeholder}
-          dir={d}
-          className="h-9 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
-        />
-      </div>
-    );
   }
 
   const stageIdx = stages.indexOf(contact.stage);
@@ -628,11 +630,11 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
           <section>
             <SectionTitle icon={<Phone className="h-3.5 w-3.5" />} title="פרטי קשר" />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="שם מלא" field="name" />
-              <Field label="שם עסק" field="business_name" />
-              <Field label="טלפון" field="phone" dir="ltr" placeholder="050-0000000" />
-              <Field label="מייל" field="email" dir="ltr" placeholder="mail@example.com" />
-              <Field label="עיר" field="city" placeholder="תל אביב" />
+              <LeadField label="שם מלא" value={val("name")} onChange={v => change("name", v)} onBlur={() => void blur("name")} />
+              <LeadField label="שם עסק" value={val("business_name")} onChange={v => change("business_name", v)} onBlur={() => void blur("business_name")} />
+              <LeadField label="טלפון" value={val("phone")} onChange={v => change("phone", v)} onBlur={() => void blur("phone")} dir="ltr" placeholder="050-0000000" />
+              <LeadField label="מייל" value={val("email")} onChange={v => change("email", v)} onBlur={() => void blur("email")} dir="ltr" placeholder="mail@example.com" />
+              <LeadField label="עיר" value={val("city")} onChange={v => change("city", v)} onBlur={() => void blur("city")} placeholder="תל אביב" />
               <div>
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">אחראי</label>
                 <Select value={contact.assigned_to ?? "__none__"}
@@ -651,12 +653,12 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
           <section>
             <SectionTitle icon={<Building2 className="h-3.5 w-3.5" />} title="פרטים עסקיים" />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="סוג עסק" field="business_type" placeholder="בע״מ / עצמאי" />
-              <Field label="תחום עיסוק" field="industry" placeholder="נדל״ן, מסחר…" />
-              <Field label="סוג שירות מבוקש" field="service_type" placeholder="ניהול מדיה, SEO…" />
-              <Field label="מספר עובדים" field="employees_count" placeholder="10" />
-              <Field label="הכנסה ראשונית" field="initial_revenue" placeholder="₪5,000" />
-              <Field label="תקציב פרסום חודשי" field="monthly_ad_budget" placeholder="₪3,000" />
+              <LeadField label="סוג עסק" value={val("business_type")} onChange={v => change("business_type", v)} onBlur={() => void blur("business_type")} placeholder="בע״מ / עצמאי" />
+              <LeadField label="תחום עיסוק" value={val("industry")} onChange={v => change("industry", v)} onBlur={() => void blur("industry")} placeholder="נדל״ן, מסחר…" />
+              <LeadField label="סוג שירות מבוקש" value={val("service_type")} onChange={v => change("service_type", v)} onBlur={() => void blur("service_type")} placeholder="ניהול מדיה, SEO…" />
+              <LeadField label="מספר עובדים" value={val("employees_count")} onChange={v => change("employees_count", v)} onBlur={() => void blur("employees_count")} placeholder="10" />
+              <LeadField label="הכנסה ראשונית" value={val("initial_revenue")} onChange={v => change("initial_revenue", v)} onBlur={() => void blur("initial_revenue")} placeholder="₪5,000" />
+              <LeadField label="תקציב פרסום חודשי" value={val("monthly_ad_budget")} onChange={v => change("monthly_ad_budget", v)} onBlur={() => void blur("monthly_ad_budget")} placeholder="₪3,000" />
             </div>
             <div className="mt-3">
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">יעדים עסקיים</label>
@@ -702,7 +704,7 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
                 <Input value={val("facebook_url")} onChange={e => change("facebook_url", e.target.value)}
                   onBlur={() => void blur("facebook_url")} placeholder="facebook.com/page" dir="ltr" className="h-9 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background" />
               </div>
-              <Field label="טיקטוק" field="tiktok_handle" dir="ltr" placeholder="@handle" />
+              <LeadField label="טיקטוק" value={val("tiktok_handle")} onChange={v => change("tiktok_handle", v)} onBlur={() => void blur("tiktok_handle")} dir="ltr" placeholder="@handle" />
             </div>
           </section>
 
