@@ -11,7 +11,7 @@ import {
   Phone, Mail, Building2, CalendarDays, ChevronRight, Loader2,
   Pencil, Save, X, ExternalLink, CheckSquare, Square, Film, Target,
   Globe, MapPin, Users, Instagram, Facebook, DollarSign, FileText,
-  Camera, Video, Circle, Clock, CheckCircle2,
+  Camera, Video, Circle, Clock, CheckCircle2, Archive, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -155,6 +155,9 @@ function ClientProfile() {
   const [expandedShootDay, setExpandedShootDay] = useState<string | null>(null);
   const [meetingNotes, setMeetingNotes]   = useState<Record<string, string>>({});
   const [briefModal,   setBriefModal]     = useState<string | null>(null);
+  const [showDelete,   setShowDelete]     = useState(false);
+  const [showArchive,  setShowArchive]    = useState(false);
+  const [actioning,    setActioning]      = useState(false);
 
   useEffect(() => { void load(); }, [id]);
 
@@ -247,6 +250,26 @@ function ClientProfile() {
     const notes = meetingNotes[meetingId] ?? "";
     await supabase.from("meetings").update({ notes } as never).eq("id", meetingId);
     setMeetings((prev) => prev.map((m) => m.id === meetingId ? { ...m, notes } : m));
+  }
+
+  async function archiveClient() {
+    if (!client) return;
+    setActioning(true);
+    const { error } = await supabase.from("contacts").update({ client_status: "archived" } as never).eq("id", client.id);
+    setActioning(false);
+    if (error) { toast.error("שגיאה בארכיון"); return; }
+    toast.success("הלקוח הועבר לארכיון");
+    navigate({ to: "/clients" });
+  }
+
+  async function deleteClient() {
+    if (!client) return;
+    setActioning(true);
+    const { error } = await supabase.from("contacts").delete().eq("id", client.id);
+    setActioning(false);
+    if (error) { toast.error("שגיאה במחיקה"); return; }
+    toast.success("הלקוח נמחק לצמיתות");
+    navigate({ to: "/clients" });
   }
 
   async function toggleActionItem(meetingId: string, itemId: string) {
@@ -381,9 +404,21 @@ function ClientProfile() {
                     )}
                   </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => { setEditing(true); setTab("overview"); }}>
-                  <Pencil className="me-1 h-3.5 w-3.5" />עריכה
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button size="sm" variant="outline" onClick={() => { setEditing(true); setTab("overview"); }}>
+                    <Pencil className="me-1 h-3.5 w-3.5" />עריכה
+                  </Button>
+                  <Button size="sm" variant="outline"
+                    className="border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                    onClick={() => setShowArchive(true)}>
+                    <Archive className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="sm" variant="outline"
+                    className="border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
+                    onClick={() => setShowDelete(true)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-3">
@@ -1032,6 +1067,66 @@ function ClientProfile() {
         )}
 
       </div>
+
+      {/* Archive confirm */}
+      {showArchive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setShowArchive(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-background p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()} dir="rtl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
+                <Archive className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">העבר לארכיון</p>
+                <p className="text-sm text-muted-foreground">{client.name}</p>
+              </div>
+            </div>
+            <p className="mb-5 text-sm text-muted-foreground">
+              הלקוח יוסתר מהרשימה הראשית. ניתן לשחזר בעתיד על ידי עדכון סטטוס.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowArchive(false)}>ביטול</Button>
+              <Button size="sm" onClick={() => void archiveClient()} disabled={actioning}
+                className="bg-amber-500 text-white hover:bg-amber-600">
+                {actioning ? <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" /> : <Archive className="me-1 h-3.5 w-3.5" />}
+                העבר לארכיון
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {showDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setShowDelete(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-background p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()} dir="rtl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30">
+                <Trash2 className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">מחיקה לצמיתות</p>
+                <p className="text-sm text-muted-foreground">{client.name}</p>
+              </div>
+            </div>
+            <p className="mb-5 text-sm text-muted-foreground">
+              פעולה זו <span className="font-semibold text-foreground">אינה הפיכה</span>. כל הנתונים,
+              הפגישות, המשימות וימי הצילום של לקוח זה ימחקו לצמיתות.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowDelete(false)}>ביטול</Button>
+              <Button size="sm" variant="destructive" onClick={() => void deleteClient()} disabled={actioning}>
+                {actioning ? <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="me-1 h-3.5 w-3.5" />}
+                מחק לצמיתות
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Brief modal */}
       {briefModal !== null && (

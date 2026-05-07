@@ -108,6 +108,7 @@ function ClientsPage() {
       .from("contacts")
       .select("id,name,phone,email,business_name,notes,assigned_to,plan_id,client_status,client_since,industry,initial_revenue,business_goals,service_type,city,created_at")
       .eq("stage", "לקוח פעיל")
+      .in("client_status", ["active", "paused", "ended"])
       .order("created_at", { ascending: false });
 
     if (data) {
