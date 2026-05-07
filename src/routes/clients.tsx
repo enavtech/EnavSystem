@@ -305,32 +305,34 @@ function ClientsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-3 space-y-1.5">
-                    {c.phone && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Phone className="h-3 w-3 shrink-0" />
-                        <span dir="ltr">{c.phone}</span>
-                      </div>
-                    )}
-                    {c.email && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Mail className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{c.email}</span>
-                      </div>
-                    )}
-                    {(c.service_type || c.industry) && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Building2 className="h-3 w-3 shrink-0" />
-                        <span>{c.service_type ?? c.industry}</span>
-                      </div>
-                    )}
-                    {c.city && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        <span>{c.city}</span>
-                      </div>
-                    )}
-                  </div>
+                  {(c.phone || c.email || c.service_type || c.industry || c.city) && (
+                    <div className="mt-3 space-y-1.5">
+                      {c.phone && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          <span dir="ltr">{c.phone}</span>
+                        </div>
+                      )}
+                      {c.email && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{c.email}</span>
+                        </div>
+                      )}
+                      {(c.service_type || c.industry) && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Building2 className="h-3 w-3 shrink-0" />
+                          <span>{c.service_type ?? c.industry}</span>
+                        </div>
+                      )}
+                      {c.city && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span>{c.city}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
