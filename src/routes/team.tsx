@@ -168,6 +168,39 @@ function TeamPage() {
     statusLabelRef.current = m;
   }, [statuses]);
 
+  // ── Persistent notifications (visible even when offline) ─────────────────
+  type Notif = {
+    id: string; type: string; title: string; body: string | null;
+    task_id: string | null; status_key: string | null; created_at: string;
+  };
+  const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [lastReadAt, setLastReadAt] = useState<string>(() => {
+    if (typeof window === "undefined") return new Date(0).toISOString();
+    return localStorage.getItem("team_notifs_last_read") || new Date(0).toISOString();
+  });
+  useEffect(() => {
+    if (!authed) return;
+    void supabase.from("notifications").select("*")
+      .order("created_at", { ascending: false }).limit(50)
+      .then(({ data }) => setNotifs((data ?? []) as Notif[]));
+    const ch = supabase.channel("team-notifs")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, (p) => {
+        setNotifs(prev => [p.new as Notif, ...prev].slice(0, 50));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [authed]);
+  const unreadCount = useMemo(
+    () => notifs.filter(n => n.created_at > lastReadAt).length,
+    [notifs, lastReadAt]
+  );
+  function markAllRead() {
+    const now = new Date().toISOString();
+    setLastReadAt(now);
+    if (typeof window !== "undefined") localStorage.setItem("team_notifs_last_read", now);
+  }
+
   // Deadline reminders: notify once per task per session
   const notifiedDeadlineRef = useRef<Set<string>>(new Set());
   useEffect(() => {
