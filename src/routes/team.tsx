@@ -159,6 +159,36 @@ function TeamPage() {
   const doneKeys = useMemo(() => new Set(statuses.filter(s => s.is_done).map(s => s.status_key)), [statuses]);
   const isDoneStatus = (key: string) => doneKeys.has(key);
 
+  // Refs for notifications
+  const statusLabelRef = useRef<Map<string, string>>(new Map());
+  useEffect(() => {
+    const m = new Map<string, string>();
+    statuses.forEach(s => m.set(s.status_key, s.label));
+    statusLabelRef.current = m;
+  }, [statuses]);
+
+  // Deadline reminders: notify once per task per session
+  const notifiedDeadlineRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!authed || tasks.length === 0) return;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const ms = 86400000;
+    tasks.forEach(t => {
+      if (!t.due_date || isDoneStatus(t.status)) return;
+      const due = new Date(t.due_date); due.setHours(0, 0, 0, 0);
+      const days = Math.round((due.getTime() - today.getTime()) / ms);
+      let key = "", msg = "";
+      if (days < 0) { key = `over-${t.id}`; msg = `⚠️ "${t.title}" באיחור של ${Math.abs(days)} ימים`; }
+      else if (days === 0) { key = `today-${t.id}`; msg = `🔔 "${t.title}" — דד-ליין היום!`; }
+      else if (days === 1) { key = `tom-${t.id}`; msg = `⏰ "${t.title}" — דד-ליין מחר`; }
+      else if (days <= 3) { key = `soon-${t.id}-${days}`; msg = `📅 "${t.title}" — בעוד ${days} ימים`; }
+      if (key && !notifiedDeadlineRef.current.has(key)) {
+        notifiedDeadlineRef.current.add(key);
+        toast.warning(msg, { duration: 6000 });
+      }
+    });
+  }, [tasks, authed, doneKeys]);
+
   const filteredTasks = useMemo(() => tasks.filter(t => {
     if (filterAssignee !== "all") {
       if (filterAssignee === "none" && t.assignee_id) return false;
