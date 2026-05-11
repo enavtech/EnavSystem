@@ -459,6 +459,39 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          old_status_key: string | null
+          status_key: string | null
+          task_id: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          old_status_key?: string | null
+          status_key?: string | null
+          task_id?: string | null
+          title: string
+          type?: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          old_status_key?: string | null
+          status_key?: string | null
+          task_id?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
       plans: {
         Row: {
           accent_color: string | null
