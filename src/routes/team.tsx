@@ -15,8 +15,9 @@ import {
 import {
   Plus, Loader2, Trash2, Users, ListChecks, LayoutGrid, BarChart3,
   Pencil, Settings2, ArrowUp, ArrowDown, CheckCircle2, Clock, AlertTriangle,
-  Flame, Circle, CalendarDays, ChevronRight,
+  Flame, Circle, CalendarDays, ChevronRight, Bell,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { isAdmin } from "@/lib/admin-session";
 import { syncTeamMembers } from "@/lib/admin-api";
 import { cn } from "@/lib/utils";
