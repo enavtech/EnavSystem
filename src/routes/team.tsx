@@ -136,7 +136,17 @@ function TeamPage() {
     if (!authed) return;
     void syncTeamMembers().then(() => loadAll()).catch(() => loadAll());
     const ch = supabase.channel("team-internal")
-      .on("postgres_changes", { event: "*", schema: "public", table: "internal_tasks" }, () => loadAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "internal_tasks" }, (payload) => {
+        if (payload.eventType === "UPDATE") {
+          const oldRow = payload.old as Partial<InternalTask>;
+          const newRow = payload.new as Partial<InternalTask>;
+          if (oldRow.status && newRow.status && oldRow.status !== newRow.status) {
+            const label = statusLabelRef.current.get(newRow.status) ?? newRow.status;
+            toast.info(`📌 "${newRow.title ?? "משימה"}" עברה ל${label}`);
+          }
+        }
+        loadAll();
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "team_members" }, () => loadAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "kanban_statuses" }, () => loadAll())
       .subscribe();
