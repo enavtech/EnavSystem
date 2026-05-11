@@ -361,6 +361,45 @@ function TeamPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Popover open={notifOpen} onOpenChange={(o) => { setNotifOpen(o); if (o) markAllRead(); }}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="relative cursor-pointer">
+                  <Bell className="h-3.5 w-3.5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-0" style={{ direction: "rtl" }}>
+                <div className="flex items-center justify-between border-b px-3 py-2">
+                  <span className="text-sm font-semibold">התראות</span>
+                  <span className="text-xs text-muted-foreground">{notifs.length} אחרונות</span>
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  {notifs.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-xs text-muted-foreground">אין התראות עדיין</div>
+                  ) : notifs.map(n => {
+                    const isUnread = n.created_at > lastReadAt;
+                    const d = new Date(n.created_at);
+                    const when = d.toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+                    return (
+                      <div key={n.id} className={cn("border-b px-3 py-2 last:border-b-0", isUnread && "bg-blue-50/60 dark:bg-blue-950/20")}>
+                        <div className="flex items-start gap-2">
+                          {isUnread && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-semibold text-foreground truncate">📌 {n.title}</div>
+                            {n.body && <div className="text-xs text-muted-foreground mt-0.5">{n.body}</div>}
+                            <div className="text-[10px] text-muted-foreground mt-1">{when}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setShowStatuses(true)}>
               <Settings2 className="ms-1.5 h-3.5 w-3.5" /> שלבים
             </Button>
