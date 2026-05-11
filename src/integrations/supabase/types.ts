@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      activities: {
+        Row: {
+          contact_id: string
+          content: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          metadata: Json | null
+          status: string | null
+          type: string
+        }
+        Insert: {
+          contact_id: string
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string | null
+          type: string
+        }
+        Update: {
+          contact_id?: string
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_log: {
         Row: {
           action: string
@@ -52,18 +93,21 @@ export type Database = {
           admin_password_hash: string | null
           created_at: string
           id: number
+          lead_stages: Json | null
           updated_at: string
         }
         Insert: {
           admin_password_hash?: string | null
           created_at?: string
           id?: number
+          lead_stages?: Json | null
           updated_at?: string
         }
         Update: {
           admin_password_hash?: string | null
           created_at?: string
           id?: number
+          lead_stages?: Json | null
           updated_at?: string
         }
         Relationships: []
@@ -100,6 +144,150 @@ export type Database = {
           },
         ]
       }
+      contacts: {
+        Row: {
+          ad_name: string | null
+          assigned_to: string | null
+          business_goals: string | null
+          business_name: string | null
+          business_type: string | null
+          campaign_name: string | null
+          city: string | null
+          client_since: string | null
+          client_status: string | null
+          contract_end_date: string | null
+          contract_signed_date: string | null
+          created_at: string
+          email: string | null
+          employees_count: number | null
+          facebook_url: string | null
+          form_name: string | null
+          id: string
+          id_number: string | null
+          industry: string | null
+          initial_revenue: string | null
+          instagram_handle: string | null
+          lead_date: string | null
+          meta_lead_id: string | null
+          monthly_ad_budget: string | null
+          monthly_fee: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          plan_id: string | null
+          service_type: string | null
+          source: string
+          stage: string
+          tax_id: string | null
+          tiktok_handle: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          ad_name?: string | null
+          assigned_to?: string | null
+          business_goals?: string | null
+          business_name?: string | null
+          business_type?: string | null
+          campaign_name?: string | null
+          city?: string | null
+          client_since?: string | null
+          client_status?: string | null
+          contract_end_date?: string | null
+          contract_signed_date?: string | null
+          created_at?: string
+          email?: string | null
+          employees_count?: number | null
+          facebook_url?: string | null
+          form_name?: string | null
+          id?: string
+          id_number?: string | null
+          industry?: string | null
+          initial_revenue?: string | null
+          instagram_handle?: string | null
+          lead_date?: string | null
+          meta_lead_id?: string | null
+          monthly_ad_budget?: string | null
+          monthly_fee?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          plan_id?: string | null
+          service_type?: string | null
+          source?: string
+          stage?: string
+          tax_id?: string | null
+          tiktok_handle?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          ad_name?: string | null
+          assigned_to?: string | null
+          business_goals?: string | null
+          business_name?: string | null
+          business_type?: string | null
+          campaign_name?: string | null
+          city?: string | null
+          client_since?: string | null
+          client_status?: string | null
+          contract_end_date?: string | null
+          contract_signed_date?: string | null
+          created_at?: string
+          email?: string | null
+          employees_count?: number | null
+          facebook_url?: string | null
+          form_name?: string | null
+          id?: string
+          id_number?: string | null
+          industry?: string | null
+          initial_revenue?: string | null
+          instagram_handle?: string | null
+          lead_date?: string | null
+          meta_lead_id?: string | null
+          monthly_ad_budget?: string | null
+          monthly_fee?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          plan_id?: string | null
+          service_type?: string | null
+          source?: string
+          stage?: string
+          tax_id?: string | null
+          tiktok_handle?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      content_items: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          id: string
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       internal_tasks: {
         Row: {
           assignee_id: string | null
@@ -108,6 +296,7 @@ export type Database = {
           created_at: string
           description: string | null
           due_date: string | null
+          goal_id: string | null
           id: string
           plan_id: string | null
           position: number
@@ -124,6 +313,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          goal_id?: string | null
           id?: string
           plan_id?: string | null
           position?: number
@@ -140,6 +330,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          goal_id?: string | null
           id?: string
           plan_id?: string | null
           position?: number
@@ -206,12 +397,76 @@ export type Database = {
         }
         Relationships: []
       }
+      meetings: {
+        Row: {
+          action_items: Json
+          attendees: string[]
+          contact_id: string | null
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          location: string | null
+          meeting_date: string
+          meeting_time: string | null
+          notes: string | null
+          plan_id: string | null
+          status: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          action_items?: Json
+          attendees?: string[]
+          contact_id?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          location?: string | null
+          meeting_date: string
+          meeting_time?: string | null
+          notes?: string | null
+          plan_id?: string | null
+          status?: string
+          title: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          action_items?: Json
+          attendees?: string[]
+          contact_id?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          location?: string | null
+          meeting_date?: string
+          meeting_time?: string | null
+          notes?: string | null
+          plan_id?: string | null
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetings_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plans: {
         Row: {
           accent_color: string | null
           archived: boolean
           created_at: string
           id: string
+          is_template: boolean
+          logo_url: string | null
           name: string
           share_token: string
           slug: string
@@ -224,6 +479,8 @@ export type Database = {
           archived?: boolean
           created_at?: string
           id?: string
+          is_template?: boolean
+          logo_url?: string | null
           name: string
           share_token?: string
           slug: string
@@ -236,6 +493,8 @@ export type Database = {
           archived?: boolean
           created_at?: string
           id?: string
+          is_template?: boolean
+          logo_url?: string | null
           name?: string
           share_token?: string
           slug?: string
@@ -244,6 +503,94 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      shoot_days: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          creative_brief: string | null
+          id: string
+          shoot_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          creative_brief?: string | null
+          id?: string
+          shoot_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          creative_brief?: string | null
+          id?: string
+          shoot_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shoot_days_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shoot_videos: {
+        Row: {
+          assigned_editor: string | null
+          content_type: string
+          created_at: string
+          drive_link: string | null
+          edit_status: string
+          id: string
+          notes: string | null
+          position: number
+          shoot_day_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_editor?: string | null
+          content_type?: string
+          created_at?: string
+          drive_link?: string | null
+          edit_status?: string
+          id?: string
+          notes?: string | null
+          position?: number
+          shoot_day_id: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_editor?: string | null
+          content_type?: string
+          created_at?: string
+          drive_link?: string | null
+          edit_status?: string
+          id?: string
+          notes?: string | null
+          position?: number
+          shoot_day_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shoot_videos_shoot_day_id_fkey"
+            columns: ["shoot_day_id"]
+            isOneToOne: false
+            referencedRelation: "shoot_days"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_steps: {
         Row: {
@@ -329,6 +676,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      team_goals: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          parent_id: string | null
+          period_end: string
+          period_start: string
+          period_type: string
+          position: number
+          progress: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          parent_id?: string | null
+          period_end: string
+          period_start: string
+          period_type?: string
+          position?: number
+          progress?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          parent_id?: string | null
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          position?: number
+          progress?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       team_members: {
         Row: {
