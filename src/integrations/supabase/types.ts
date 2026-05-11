@@ -22,6 +22,7 @@ export type Database = {
           created_by: string | null
           id: string
           metadata: Json | null
+          status: string | null
           type: string
         }
         Insert: {
@@ -31,6 +32,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           metadata?: Json | null
+          status?: string | null
           type: string
         }
         Update: {
@@ -40,6 +42,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           metadata?: Json | null
+          status?: string | null
           type?: string
         }
         Relationships: [
@@ -90,18 +93,21 @@ export type Database = {
           admin_password_hash: string | null
           created_at: string
           id: number
+          lead_stages: Json | null
           updated_at: string
         }
         Insert: {
           admin_password_hash?: string | null
           created_at?: string
           id?: number
+          lead_stages?: Json | null
           updated_at?: string
         }
         Update: {
           admin_password_hash?: string | null
           created_at?: string
           id?: number
+          lead_stages?: Json | null
           updated_at?: string
         }
         Relationships: []
@@ -255,6 +261,33 @@ export type Database = {
         }
         Relationships: []
       }
+      content_items: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          id: string
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       internal_tasks: {
         Row: {
           assignee_id: string | null
@@ -263,6 +296,7 @@ export type Database = {
           created_at: string
           description: string | null
           due_date: string | null
+          goal_id: string | null
           id: string
           plan_id: string | null
           position: number
@@ -279,6 +313,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          goal_id?: string | null
           id?: string
           plan_id?: string | null
           position?: number
@@ -295,6 +330,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          goal_id?: string | null
           id?: string
           plan_id?: string | null
           position?: number
@@ -429,6 +465,7 @@ export type Database = {
           archived: boolean
           created_at: string
           id: string
+          is_template: boolean
           logo_url: string | null
           name: string
           share_token: string
@@ -442,6 +479,7 @@ export type Database = {
           archived?: boolean
           created_at?: string
           id?: string
+          is_template?: boolean
           logo_url?: string | null
           name: string
           share_token?: string
@@ -455,6 +493,7 @@ export type Database = {
           archived?: boolean
           created_at?: string
           id?: string
+          is_template?: boolean
           logo_url?: string | null
           name?: string
           share_token?: string
@@ -511,6 +550,7 @@ export type Database = {
           drive_link: string | null
           edit_status: string
           id: string
+          notes: string | null
           position: number
           shoot_day_id: string
           title: string
@@ -523,6 +563,7 @@ export type Database = {
           drive_link?: string | null
           edit_status?: string
           id?: string
+          notes?: string | null
           position?: number
           shoot_day_id: string
           title?: string
@@ -535,6 +576,7 @@ export type Database = {
           drive_link?: string | null
           edit_status?: string
           id?: string
+          notes?: string | null
           position?: number
           shoot_day_id?: string
           title?: string
@@ -634,6 +676,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      team_goals: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          parent_id: string | null
+          period_end: string
+          period_start: string
+          period_type: string
+          position: number
+          progress: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          parent_id?: string | null
+          period_end: string
+          period_start: string
+          period_type?: string
+          position?: number
+          progress?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          parent_id?: string | null
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          position?: number
+          progress?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       team_members: {
         Row: {
