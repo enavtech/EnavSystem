@@ -1,6 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  fbGetContacts, fbGetStageCodes, fbUpdateContact, fbCreateContact,
+  fbDeleteContact, fbToContact, contactPatchToFb,
+  fbGetContactFull, FB_FIELD_LABELS,
+} from "@/lib/fireberry-api";
 import { isAdmin } from "@/lib/admin-session";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -16,7 +22,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 import {
   Plus, Phone, Building2, X, Loader2, Search, MapPin,
-  Globe, Instagram, Facebook, UserCheck, ChevronRight, Pencil,
+  Globe, UserCheck, ChevronRight, Pencil,
   Trash2, Zap, ExternalLink, Users, Settings2, ArrowUp, ArrowDown,
   CalendarDays, ChevronDown, AlertCircle, TrendingUp, Clock,
   MessageSquare, Mail, MessageCircle, ArrowRightLeft,
@@ -71,6 +77,24 @@ export type Contact = {
   campaign_name: string | null;
   // Editable lead date
   lead_date: string | null;
+  // Fireberry extended fields
+  lost_reason?: string | null;
+  extended_notes?: string | null;
+  // Business metrics (pcf fields)
+  incorporation_type: string | null;
+  conversion_rate: number | null;
+  turnover: number | null;
+  cashflow: number | null;
+  operating_profit: number | null;
+  avg_deal: number | null;
+  capacity_pct: number | null;
+  turnover_target: number | null;
+  cashflow_target: number | null;
+  turnover_gap: number | null;
+  cashflow_gap: number | null;
+  source_conversion_rate: number | null;
+  operating_expenses: number | null;
+  leads_fb: number | null;
 };
 
 // ─── Activity types ────────────────────────────────────────────────────────────
@@ -136,6 +160,7 @@ function CRMPage() {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [search,         setSearch]         = useState("");
   const [stages,         setStages]         = useState<string[]>(DEFAULT_STAGES);
+  const [stageCodes,     setStageCodes]     = useState<{ code: number; name: string }[]>([]);
   const [showStages,     setShowStages]     = useState(false);
   const [settingsId,     setSettingsId]     = useState<number | null>(null);
   const [dateFilter,     setDateFilter]     = useState<"all"|"today"|"yesterday"|"7days"|"thisMonth"|"prevMonth"|"custom">("all");
@@ -146,6 +171,7 @@ function CRMPage() {
   const [assignedFilter, setAssignedFilter] = useState("all");
   const [activities,        setActivities]        = useState<Activity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [selectedRaw,       setSelectedRaw]       = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     if (!isAdmin()) { navigate({ to: "/login" }); return; }
@@ -153,7 +179,7 @@ function CRMPage() {
   }, [navigate]);
 
   useEffect(() => {
-    if (!selectedId) { setActivities([]); return; }
+    if (!selectedId) { setActivities([]); setSelectedRaw({}); return; }
     setActivitiesLoading(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     void (supabase as any).from("activities").select("*")
@@ -163,20 +189,24 @@ function CRMPage() {
         setActivities(data ?? []);
         setActivitiesLoading(false);
       });
+    void fbGetContactFull({ data: { id: selectedId } }).then(raw => {
+      setSelectedRaw(raw as Record<string, unknown>);
+    }).catch(() => {});
   }, [selectedId]);
 
   async function load() {
     setLoading(true);
-    const [contactsRes, settingsRes] = await Promise.all([
-      supabase.from("contacts").select("*").neq("stage", CLIENT_STAGE).order("created_at", { ascending: false }),
+    const [contactsRes, stageCodesRes, settingsRes] = await Promise.all([
+      fbGetContacts({ data: { pageSize: 500, excludeClients: true } }),
+      fbGetStageCodes(),
       supabase.from("app_settings").select("id,lead_stages").limit(1).single(),
     ]);
-    setContacts((contactsRes.data ?? []) as unknown as Contact[]);
-    if (settingsRes.data) {
-      setSettingsId(settingsRes.data.id);
-      const ls = settingsRes.data.lead_stages;
-      if (Array.isArray(ls) && ls.length > 0) setStages(ls as string[]);
-    }
+    setContacts((contactsRes.data ?? []).map(fbToContact) as Contact[]);
+    const codes = stageCodesRes.stages ?? [];
+    setStageCodes(codes);
+    const leadStages = codes.filter(s => !s.name.includes("לקוח")).map(s => s.name);
+    if (leadStages.length > 0) setStages(leadStages);
+    if (settingsRes.data) setSettingsId(settingsRes.data.id);
     setLoading(false);
   }
 
@@ -244,24 +274,28 @@ function CRMPage() {
   async function saveNew() {
     if (!form.name.trim()) { toast.error("חובה שם"); return; }
     setSaving(true);
-    const payload = {
-      name: form.name.trim(),
-      phone: form.phone.trim() || null,
-      email: form.email.trim() || null,
-      business_name: form.business_name.trim() || null,
-      source: form.source,
-      stage: form.stage,
-      assigned_to: form.assigned_to || null,
-      notes: form.notes.trim() || null,
-      lead_date: form.lead_date || todayStr(),
-      updated_at: new Date().toISOString(),
-    };
-    if (editContact) {
-      const { error } = await supabase.from("contacts").update(payload as never).eq("id", editContact.id);
-      if (error) toast.error(error.message); else toast.success("עודכן");
-    } else {
-      const { error } = await supabase.from("contacts").insert(payload as never);
-      if (error) toast.error(error.message); else toast.success("ליד נוצר");
+    const stageCode = stageCodes.find(s => s.name === form.stage)?.code;
+    try {
+      if (editContact) {
+        const fbPatch: Record<string, unknown> = {
+          accountname: form.name.trim(),
+          telephone1: form.phone.trim() || null,
+          emailaddress1: form.email.trim() || null,
+          ...(stageCode ? { statuscode: stageCode } : {}),
+        };
+        await fbUpdateContact({ data: { id: editContact.id, patch: fbPatch } });
+        toast.success("עודכן");
+      } else {
+        await fbCreateContact({ data: {
+          name: form.name.trim(),
+          phone: form.phone.trim() || null,
+          email: form.email.trim() || null,
+          statuscode: stageCode,
+        }});
+        toast.success("ליד נוצר");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "שגיאה");
     }
     setSaving(false);
     setShowAdd(false);
@@ -272,13 +306,16 @@ function CRMPage() {
 
   // Auto-save single field for selected lead
   const saveField = useCallback(async (id: string, patch: Partial<Contact>) => {
-    await supabase.from("contacts").update({ ...patch, updated_at: new Date().toISOString() } as never).eq("id", id);
+    const fbPatch = contactPatchToFb(patch as Record<string, unknown>);
+    if (Object.keys(fbPatch).length > 0) {
+      await fbUpdateContact({ data: { id, patch: fbPatch } });
+    }
     setContacts(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
   }, []);
 
   async function deleteContact(id: string) {
     if (!confirm("למחוק ליד זה לצמיתות?")) return;
-    await supabase.from("contacts").delete().eq("id", id);
+    await fbDeleteContact({ data: { id } });
     setSelectedId(null);
     void load();
   }
@@ -297,7 +334,9 @@ function CRMPage() {
 
   async function moveStage(id: string, stage: string) {
     const prevStage = contacts.find(c => c.id === id)?.stage;
-    await supabase.from("contacts").update({ stage, updated_at: new Date().toISOString() }).eq("id", id);
+    const code = stageCodes.find(s => s.name === stage)?.code;
+    if (!code) { toast.error(`שלב "${stage}" לא נמצא`); return; }
+    await fbUpdateContact({ data: { id, patch: { statuscode: code } } });
     setContacts(prev => prev.map(c => c.id === id ? { ...c, stage } : c));
     if (prevStage && prevStage !== stage) {
       void addActivity(id, "stage_change", `${prevStage} ← ${stage}`);
@@ -307,14 +346,14 @@ function CRMPage() {
   async function convertToClient(contact: Contact) {
     if (!confirm(`להמיר את "${contact.name}" ללקוח פעיל?`)) return;
     setConverting(true);
-    const { error } = await supabase.from("contacts").update({
-      stage: "לקוח פעיל",
-      client_status: "active",
-      client_since: new Date().toISOString().slice(0, 10),
-      updated_at: new Date().toISOString(),
-    }).eq("id", contact.id);
+    const clientCode = stageCodes.find(s => s.name.includes("לקוח"))?.code;
+    if (!clientCode) {
+      toast.error("לא נמצא שלב לקוח בפיירברי — ודא שיש שלב שמכיל 'לקוח'");
+      setConverting(false);
+      return;
+    }
+    await fbUpdateContact({ data: { id: contact.id, patch: { statuscode: clientCode } } });
     setConverting(false);
-    if (error) { toast.error(error.message); return; }
     void addActivity(contact.id, "conversion", `${contact.name} הומר ללקוח פעיל`);
     toast.success(`${contact.name} הועבר ללקוחות!`);
     setSelectedId(null);
@@ -589,6 +628,7 @@ function CRMPage() {
             activities={activities}
             activitiesLoading={activitiesLoading}
             onAddActivity={(type, content) => addActivity(selected.id, type, content)}
+            rawFields={selectedRaw}
           />
         )}
       </div>
@@ -822,7 +862,22 @@ function LeadField({ label, value, onChange, onBlur, placeholder, dir: d }: {
 
 // ─── Lead detail panel ────────────────────────────────────────────────────────
 
-function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConvert, onDelete, onEditBasic, converting, activities, activitiesLoading, onAddActivity }: {
+// Fields already shown as editable inputs — excluded from raw section
+const FORM_FIELDS_SHOWN = new Set([
+  "_id", "accountid", "accountname", "telephone1", "emailaddress1",
+  "statuscode", "status", "ownerid", "ownerid_fullname", "ownername", "createdon", "modifiedon",
+  "billingcity", "websiteurl", "numberofemployees", "industrycode", "businesstypecode",
+  "idnumber", "needs", "description", "lostreason", "revenue",
+  "originatingleadcode", "originatinglead", "industry", "pcfsystemfield167name",
+  "pcfsystemfield108", "pcfsystemfield117", "pcfsystemfield128", "pcfsystemfield149", "pcfsystemfield167",
+  // Metrics
+  "pcfsystemfield107", "pcfsystemfield129", "pcfsystemfield130", "pcfsystemfield131",
+  "pcfsystemfield132", "pcfsystemfield134", "pcfsystemfield135", "pcfsystemfield136",
+  "pcfsystemfield137", "pcfsystemfield138", "pcfsystemfield139", "pcfsystemfield140",
+  "pcfsystemfield156", "pcfsystemfield163",
+]);
+
+function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConvert, onDelete, onEditBasic, converting, activities, activitiesLoading, onAddActivity, rawFields }: {
   contact: Contact;
   stages: string[];
   onClose: () => void;
@@ -835,6 +890,7 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
   activities: Activity[];
   activitiesLoading: boolean;
   onAddActivity: (type: ActivityType, content: string) => Promise<void>;
+  rawFields: Record<string, unknown>;
 }) {
   // Local state per-field for controlled inputs with onBlur save
   const [f, setF] = useState<Partial<Contact>>({});
@@ -940,162 +996,250 @@ function LeadDetail({ contact, stages, onClose, onSaveField, onMoveStage, onConv
           </div>
         </div>
 
-        {/* Scrollable form */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        {/* Tabs */}
+        <Tabs defaultValue="details" className="flex flex-1 flex-col overflow-hidden" dir="rtl">
+          <TabsList className="mx-5 mt-3 mb-0 shrink-0 grid grid-cols-4 h-9">
+            <TabsTrigger value="details" className="text-xs cursor-pointer">פרטים</TabsTrigger>
+            <TabsTrigger value="metrics" className="text-xs cursor-pointer">מדדים</TabsTrigger>
+            <TabsTrigger value="notes" className="text-xs cursor-pointer">הערות</TabsTrigger>
+            <TabsTrigger value="activity" className="text-xs cursor-pointer">פעילות</TabsTrigger>
+          </TabsList>
 
-          {/* Contact info */}
-          <section>
-            <SectionTitle icon={<Phone className="h-3.5 w-3.5" />} title="פרטי קשר" />
-            <div className="grid grid-cols-2 gap-3">
-              <LeadField label="שם מלא" value={val("name")} onChange={v => change("name", v)} onBlur={() => void blur("name")} />
-              <LeadField label="שם עסק" value={val("business_name")} onChange={v => change("business_name", v)} onBlur={() => void blur("business_name")} />
-              <LeadField label="טלפון" value={val("phone")} onChange={v => change("phone", v)} onBlur={() => void blur("phone")} dir="ltr" placeholder="050-0000000" />
-              <LeadField label="מייל" value={val("email")} onChange={v => change("email", v)} onBlur={() => void blur("email")} dir="ltr" placeholder="mail@example.com" />
-              <LeadField label="עיר" value={val("city")} onChange={v => change("city", v)} onBlur={() => void blur("city")} placeholder="תל אביב" />
-              <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">אחראי</label>
-                <Select value={contact.assigned_to ?? "__none__"}
-                  onValueChange={v => void onSaveField({ assigned_to: v === "__none__" ? null : v })}>
-                  <SelectTrigger className="h-9 bg-muted/50 text-sm cursor-pointer border-muted-foreground/20"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">—</SelectItem>
-                    {TEAM_MEMBERS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </section>
+          {/* ── Tab: פרטים ── */}
+          <TabsContent value="details" className="flex-1 overflow-y-auto px-5 py-4 space-y-5 mt-2">
 
-          {/* Business details */}
-          <section>
-            <SectionTitle icon={<Building2 className="h-3.5 w-3.5" />} title="פרטים עסקיים" />
-            <div className="grid grid-cols-2 gap-3">
-              <LeadField label="סוג עסק" value={val("business_type")} onChange={v => change("business_type", v)} onBlur={() => void blur("business_type")} placeholder="בע״מ / עצמאי" />
-              <LeadField label="תחום עיסוק" value={val("industry")} onChange={v => change("industry", v)} onBlur={() => void blur("industry")} placeholder="נדל״ן, מסחר…" />
-              <LeadField label="סוג שירות מבוקש" value={val("service_type")} onChange={v => change("service_type", v)} onBlur={() => void blur("service_type")} placeholder="ניהול מדיה, SEO…" />
-              <LeadField label="מספר עובדים" value={val("employees_count")} onChange={v => change("employees_count", v)} onBlur={() => void blur("employees_count")} placeholder="10" />
-              <LeadField label="הכנסה ראשונית" value={val("initial_revenue")} onChange={v => change("initial_revenue", v)} onBlur={() => void blur("initial_revenue")} placeholder="₪5,000" />
-              <LeadField label="תקציב פרסום חודשי" value={val("monthly_ad_budget")} onChange={v => change("monthly_ad_budget", v)} onBlur={() => void blur("monthly_ad_budget")} placeholder="₪3,000" />
-            </div>
-            <div className="mt-3">
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">יעדים עסקיים</label>
-              <Textarea
-                value={val("business_goals")}
-                onChange={e => change("business_goals", e.target.value)}
-                onBlur={() => void blur("business_goals")}
-                placeholder="מה הם רוצים להשיג?"
-                className="min-h-[60px] bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
-              />
-            </div>
-          </section>
-
-          {/* Social */}
-          <section>
-            <SectionTitle icon={<Globe className="h-3.5 w-3.5" />} title="נוכחות דיגיטלית" />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">אתר אינטרנט</label>
-                <div className="flex items-center gap-1">
-                  <Input value={val("website")} onChange={e => change("website", e.target.value)} onBlur={() => void blur("website")}
-                    placeholder="www.example.com" dir="ltr" className="h-9 flex-1 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background" />
-                  {contact.website && (
-                    <a href={contact.website.startsWith("http") ? contact.website : `https://${contact.website}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-primary transition-colors">
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  <Instagram className="h-3 w-3" /> אינסטגרם
-                </label>
-                <Input value={val("instagram_handle")} onChange={e => change("instagram_handle", e.target.value)}
-                  onBlur={() => void blur("instagram_handle")} placeholder="@handle" dir="ltr" className="h-9 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background" />
-              </div>
-              <div>
-                <label className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  <Facebook className="h-3 w-3" /> פייסבוק
-                </label>
-                <Input value={val("facebook_url")} onChange={e => change("facebook_url", e.target.value)}
-                  onBlur={() => void blur("facebook_url")} placeholder="facebook.com/page" dir="ltr" className="h-9 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background" />
-              </div>
-              <LeadField label="טיקטוק" value={val("tiktok_handle")} onChange={v => change("tiktok_handle", v)} onBlur={() => void blur("tiktok_handle")} dir="ltr" placeholder="@handle" />
-            </div>
-          </section>
-
-          {/* Meta source info */}
-          {contact.meta_lead_id && (
+            {/* Contact info */}
             <section>
-              <SectionTitle icon={<Zap className="h-3.5 w-3.5" />} title="מקור מטא" />
-              <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5 text-sm">
-                {contact.campaign_name && <div className="flex justify-between"><span className="text-xs text-muted-foreground">קמפיין</span><span className="text-xs font-medium">{contact.campaign_name}</span></div>}
-                {contact.ad_name && <div className="flex justify-between"><span className="text-xs text-muted-foreground">מודעה</span><span className="text-xs font-medium">{contact.ad_name}</span></div>}
-                {contact.form_name && <div className="flex justify-between"><span className="text-xs text-muted-foreground">טופס</span><span className="text-xs font-medium">{contact.form_name}</span></div>}
-                <div className="flex justify-between"><span className="text-xs text-muted-foreground">Lead ID</span><span className="font-mono text-[10px] text-muted-foreground">{contact.meta_lead_id}</span></div>
+              <SectionTitle icon={<Phone className="h-3.5 w-3.5" />} title="פרטי קשר" />
+              <div className="grid grid-cols-2 gap-3">
+                <LeadField label="שם מלא" value={val("name")} onChange={v => change("name", v)} onBlur={() => void blur("name")} />
+                <LeadField label="טלפון" value={val("phone")} onChange={v => change("phone", v)} onBlur={() => void blur("phone")} dir="ltr" placeholder="050-0000000" />
+                <LeadField label="מייל" value={val("email")} onChange={v => change("email", v)} onBlur={() => void blur("email")} dir="ltr" placeholder="mail@example.com" />
+                <LeadField label="עיר" value={val("city")} onChange={v => change("city", v)} onBlur={() => void blur("city")} placeholder="תל אביב" />
+                <div className="col-span-2">
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">אחראי</label>
+                  <Select value={contact.assigned_to ?? "__none__"}
+                    onValueChange={v => void onSaveField({ assigned_to: v === "__none__" ? null : v })}>
+                    <SelectTrigger className="h-9 bg-muted/50 text-sm cursor-pointer border-muted-foreground/20"><SelectValue placeholder="—" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">—</SelectItem>
+                      {TEAM_MEMBERS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </section>
-          )}
 
-          {/* Notes */}
-          <section>
-            <SectionTitle icon={<Users className="h-3.5 w-3.5" />} title="הערות" />
-            <Textarea
-              value={val("notes")}
-              onChange={e => change("notes", e.target.value)}
-              onBlur={() => void blur("notes")}
-              placeholder="רשום כאן כל פרט רלוונטי מהשיחה…"
-              className="min-h-[100px] bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
-            />
-          </section>
+            {/* Business details */}
+            <section>
+              <SectionTitle icon={<Building2 className="h-3.5 w-3.5" />} title="פרטים עסקיים" />
+              <div className="grid grid-cols-2 gap-3">
+                <LeadField label="סוג עסק" value={val("business_type")} onChange={v => change("business_type", v)} onBlur={() => void blur("business_type")} placeholder="בע״מ / עצמאי" />
+                <LeadField label="תחום עיסוק" value={val("industry")} onChange={v => change("industry", v)} onBlur={() => void blur("industry")} placeholder="נדל״ן, מסחר…" />
+                <LeadField label="סוג שירות" value={val("service_type")} onChange={v => change("service_type", v)} onBlur={() => void blur("service_type")} placeholder="ניהול מדיה…" />
+                <LeadField label="מספר עובדים" value={val("employees_count")} onChange={v => change("employees_count", v)} onBlur={() => void blur("employees_count")} placeholder="10" />
+              </div>
+              <div className="mt-3">
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">יעדים עסקיים</label>
+                <Textarea
+                  value={val("business_goals")}
+                  onChange={e => change("business_goals", e.target.value)}
+                  onBlur={() => void blur("business_goals")}
+                  placeholder="מה הם רוצים להשיג?"
+                  className="min-h-[60px] bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
+                />
+              </div>
+            </section>
 
-          {/* Dates */}
-          <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <label className="flex items-center gap-1 text-[11px] text-muted-foreground/70 shrink-0">
-                <CalendarDays className="h-3 w-3" /> תאריך יצירת ליד
-              </label>
-              <input
-                type="date"
-                value={f.lead_date !== undefined ? (f.lead_date ?? "") : (contact.lead_date ?? todayStr())}
-                onChange={e => setF(prev => ({ ...prev, lead_date: e.target.value }))}
-                onBlur={() => void blur("lead_date" as keyof Contact)}
-                className="h-7 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
+            {/* Financial */}
+            <section>
+              <SectionTitle icon={<TrendingUp className="h-3.5 w-3.5" />} title="כספי" />
+              <div className="grid grid-cols-2 gap-3">
+                <LeadField label="הכנסה ראשונית" value={val("initial_revenue")} onChange={v => change("initial_revenue", v)} onBlur={() => void blur("initial_revenue")} placeholder="₪5,000" />
+                <LeadField label="דמי ניהול חודשיים" value={val("monthly_fee")} onChange={v => change("monthly_fee", v)} onBlur={() => void blur("monthly_fee")} placeholder="₪3,000" />
+                <LeadField label="תקציב פרסום חודשי" value={val("monthly_ad_budget")} onChange={v => change("monthly_ad_budget", v)} onBlur={() => void blur("monthly_ad_budget")} placeholder="₪3,000" />
+                <LeadField label="ת.ז. / ח.פ." value={val("id_number")} onChange={v => change("id_number", v)} onBlur={() => void blur("id_number")} dir="ltr" placeholder="000000000" />
+              </div>
+            </section>
+
+            {/* Website */}
+            <section>
+              <SectionTitle icon={<Globe className="h-3.5 w-3.5" />} title="אתר אינטרנט" />
+              <div className="flex items-center gap-1">
+                <Input value={val("website")} onChange={e => change("website", e.target.value)} onBlur={() => void blur("website")}
+                  placeholder="www.example.com" dir="ltr" className="h-9 flex-1 bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background" />
+                {contact.website && (
+                  <a href={contact.website.startsWith("http") ? contact.website : `https://${contact.website}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-primary transition-colors">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
+            </section>
+
+            {/* Dates */}
+            <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-1 text-[11px] text-muted-foreground/70 shrink-0">
+                  <CalendarDays className="h-3 w-3" /> תאריך יצירת ליד
+                </label>
+                <input
+                  type="date"
+                  value={f.lead_date !== undefined ? (f.lead_date ?? "") : (contact.lead_date ?? todayStr())}
+                  onChange={e => setF(prev => ({ ...prev, lead_date: e.target.value }))}
+                  onBlur={() => void blur("lead_date" as keyof Contact)}
+                  className="h-7 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground/70 flex items-center gap-1">
+                  <Clock className="h-3 w-3" /> עדכון אחרון
+                </span>
+                <span className="text-foreground">
+                  {new Date(contact.updated_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+                </span>
+              </div>
+              {(() => {
+                const ref = contact.lead_date ?? contact.created_at;
+                const ageDays = Math.floor((Date.now() - new Date(ref).getTime()) / 86400000);
+                return (
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground/70">גיל ליד</span>
+                    <span className="text-foreground">
+                      {ageDays === 0 ? "היום" : ageDays === 1 ? "יום אחד" : `${ageDays} ימים`}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-muted-foreground/70 flex items-center gap-1">
-                <Clock className="h-3 w-3" /> עדכון אחרון
-              </span>
-              <span className="text-foreground">
-                {new Date(contact.updated_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
-              </span>
-            </div>
+
+            {/* All extra Fireberry fields */}
             {(() => {
-              const ref = contact.lead_date ?? contact.created_at;
-              const ageDays = Math.floor((Date.now() - new Date(ref).getTime()) / 86400000);
+              const extras = Object.entries(rawFields).filter(([k, v]) =>
+                !FORM_FIELDS_SHOWN.has(k) &&
+                v !== null && v !== undefined && v !== "" && v !== 0 && v !== false
+              );
+              if (extras.length === 0) return null;
               return (
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-muted-foreground/70">גיל ליד</span>
-                  <span className="text-foreground">
-                    {ageDays === 0 ? "היום" : ageDays === 1 ? "יום אחד" : `${ageDays} ימים`}
-                  </span>
-                </div>
+                <section>
+                  <SectionTitle icon={<ArrowRightLeft className="h-3.5 w-3.5" />} title="שדות נוספים מפיירברי" />
+                  <div className="rounded-xl border border-border bg-muted/30 divide-y divide-border/40">
+                    {extras.map(([k, v]) => (
+                      <div key={k} className="flex items-start justify-between gap-3 px-3 py-1.5">
+                        <span className="text-[11px] text-muted-foreground shrink-0">
+                          {FB_FIELD_LABELS[k] ?? k}
+                        </span>
+                        <span className="text-[11px] font-medium text-right break-all max-w-[60%]">
+                          {String(v)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
               );
             })()}
-          </div>
 
-          {/* Activity timeline */}
-          <section>
-            <SectionTitle icon={<MessageSquare className="h-3.5 w-3.5" />} title="פעילות" />
+          </TabsContent>
+
+          {/* ── Tab: מדדים ── */}
+          <TabsContent value="metrics" className="flex-1 overflow-y-auto px-5 py-4 space-y-5 mt-2">
+
+            <section>
+              <SectionTitle icon={<TrendingUp className="h-3.5 w-3.5" />} title="מחזור" />
+              <div className="grid grid-cols-2 gap-3">
+                <LeadField label="מחזור" value={val("turnover")} onChange={v => change("turnover", v)} onBlur={() => void blur("turnover")} placeholder="50000" dir="ltr" />
+                <LeadField label="יעד מחזור" value={val("turnover_target")} onChange={v => change("turnover_target", v)} onBlur={() => void blur("turnover_target")} placeholder="150000" dir="ltr" />
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">מרחק מהיעד</label>
+                  <div className="flex h-9 items-center justify-between rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 text-sm text-foreground/70">
+                    <span>{contact.turnover_gap != null ? Number(contact.turnover_gap).toLocaleString("he-IL") : "—"}</span>
+                    <span className="text-[9px] text-muted-foreground/50 rounded bg-muted px-1.5 py-0.5">מחושב</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <SectionTitle icon={<ArrowRightLeft className="h-3.5 w-3.5" />} title="תזרים" />
+              <div className="grid grid-cols-2 gap-3">
+                <LeadField label="תזרים" value={val("cashflow")} onChange={v => change("cashflow", v)} onBlur={() => void blur("cashflow")} placeholder="38000" dir="ltr" />
+                <LeadField label="יעד תזרים" value={val("cashflow_target")} onChange={v => change("cashflow_target", v)} onBlur={() => void blur("cashflow_target")} placeholder="85000" dir="ltr" />
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">מרחק מיעד תזרים</label>
+                  <div className="flex h-9 items-center justify-between rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 text-sm text-foreground/70">
+                    <span>{contact.cashflow_gap != null ? Number(contact.cashflow_gap).toLocaleString("he-IL") : "—"}</span>
+                    <span className="text-[9px] text-muted-foreground/50 rounded bg-muted px-1.5 py-0.5">מחושב</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <SectionTitle icon={<Building2 className="h-3.5 w-3.5" />} title="פעילות עסקית" />
+              <div className="grid grid-cols-2 gap-3">
+                <LeadField label="הוצאות תפעול" value={val("operating_expenses")} onChange={v => change("operating_expenses", v)} onBlur={() => void blur("operating_expenses")} placeholder="12000" dir="ltr" />
+                <LeadField label="רווח תפעולי" value={val("operating_profit")} onChange={v => change("operating_profit", v)} onBlur={() => void blur("operating_profit")} placeholder="20000" dir="ltr" />
+                <LeadField label="עסקה ממוצעת" value={val("avg_deal")} onChange={v => change("avg_deal", v)} onBlur={() => void blur("avg_deal")} placeholder="3500" dir="ltr" />
+                <LeadField label="לידים" value={val("leads_fb")} onChange={v => change("leads_fb", v)} onBlur={() => void blur("leads_fb")} placeholder="10" dir="ltr" />
+              </div>
+            </section>
+
+            <section>
+              <SectionTitle icon={<Zap className="h-3.5 w-3.5" />} title="המרה ויחסי פעילות" />
+              <div className="grid grid-cols-2 gap-3">
+                <LeadField label="קיבולת %" value={val("capacity_pct")} onChange={v => change("capacity_pct", v)} onBlur={() => void blur("capacity_pct")} placeholder="60" dir="ltr" />
+                <LeadField label="אחוז המרה" value={val("conversion_rate")} onChange={v => change("conversion_rate", v)} onBlur={() => void blur("conversion_rate")} placeholder="49" dir="ltr" />
+                <LeadField label="המרה למקור %" value={val("source_conversion_rate")} onChange={v => change("source_conversion_rate", v)} onBlur={() => void blur("source_conversion_rate")} placeholder="30" dir="ltr" />
+                <LeadField label="אופן התאגדות" value={val("incorporation_type")} onChange={v => change("incorporation_type", v)} onBlur={() => void blur("incorporation_type")} placeholder="בע״מ / עמותה…" />
+              </div>
+            </section>
+
+          </TabsContent>
+
+          {/* ── Tab: הערות ── */}
+          <TabsContent value="notes" className="flex-1 overflow-y-auto px-5 py-4 space-y-5 mt-2">
+
+            <section>
+              <SectionTitle icon={<MessageSquare className="h-3.5 w-3.5" />} title="הערות קצרות" />
+              <Textarea
+                value={val("notes")}
+                onChange={e => change("notes", e.target.value)}
+                onBlur={() => void blur("notes")}
+                placeholder="רשום כאן כל פרט רלוונטי מהשיחה…"
+                className="min-h-[120px] bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
+              />
+            </section>
+
+            <section>
+              <SectionTitle icon={<Users className="h-3.5 w-3.5" />} title="הערות מורחבות" />
+              <Textarea
+                value={val("extended_notes")}
+                onChange={e => change("extended_notes", e.target.value)}
+                onBlur={() => void blur("extended_notes")}
+                placeholder="הערות נוספות, רקע, פרטים חשובים…"
+                className="min-h-[140px] bg-muted/50 text-sm border-muted-foreground/20 focus:bg-background"
+              />
+            </section>
+
+            {contact.lost_reason !== null && contact.lost_reason !== undefined && contact.lost_reason !== "" && (
+              <section>
+                <SectionTitle icon={<AlertCircle className="h-3.5 w-3.5" />} title="סיבת סגירה" />
+                <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/40 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-300">
+                  {contact.lost_reason}
+                </div>
+              </section>
+            )}
+
+          </TabsContent>
+
+          {/* ── Tab: פעילות ── */}
+          <TabsContent value="activity" className="flex-1 overflow-y-auto px-5 py-4 space-y-4 mt-2">
             <QuickLog onAdd={onAddActivity} />
-            <div className="mt-4">
-              <ActivityFeed activities={activities} loading={activitiesLoading} />
-            </div>
-          </section>
+            <ActivityFeed activities={activities} loading={activitiesLoading} />
+          </TabsContent>
 
-        </div>
+        </Tabs>
       </div>
     </div>
   );

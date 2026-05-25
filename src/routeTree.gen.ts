@@ -15,6 +15,7 @@ import { Route as PlansRouteImport } from './routes/plans'
 import { Route as MeetingsRouteImport } from './routes/meetings'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as GoalsRouteImport } from './routes/goals'
+import { Route as FireberryRouteImport } from './routes/fireberry'
 import { Route as CrmRouteImport } from './routes/crm'
 import { Route as ContentRouteImport } from './routes/content'
 import { Route as ClientsRouteImport } from './routes/clients'
@@ -52,6 +53,11 @@ const LoginRoute = LoginRouteImport.update({
 const GoalsRoute = GoalsRouteImport.update({
   id: '/goals',
   path: '/goals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FireberryRoute = FireberryRouteImport.update({
+  id: '/fireberry',
+  path: '/fireberry',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CrmRoute = CrmRouteImport.update({
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/clients': typeof ClientsRouteWithChildren
   '/content': typeof ContentRoute
   '/crm': typeof CrmRoute
+  '/fireberry': typeof FireberryRoute
   '/goals': typeof GoalsRoute
   '/login': typeof LoginRoute
   '/meetings': typeof MeetingsRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/clients': typeof ClientsRouteWithChildren
   '/content': typeof ContentRoute
   '/crm': typeof CrmRoute
+  '/fireberry': typeof FireberryRoute
   '/goals': typeof GoalsRoute
   '/login': typeof LoginRoute
   '/meetings': typeof MeetingsRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/clients': typeof ClientsRouteWithChildren
   '/content': typeof ContentRoute
   '/crm': typeof CrmRoute
+  '/fireberry': typeof FireberryRoute
   '/goals': typeof GoalsRoute
   '/login': typeof LoginRoute
   '/meetings': typeof MeetingsRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/content'
     | '/crm'
+    | '/fireberry'
     | '/goals'
     | '/login'
     | '/meetings'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/content'
     | '/crm'
+    | '/fireberry'
     | '/goals'
     | '/login'
     | '/meetings'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/content'
     | '/crm'
+    | '/fireberry'
     | '/goals'
     | '/login'
     | '/meetings'
@@ -200,6 +212,7 @@ export interface RootRouteChildren {
   ClientsRoute: typeof ClientsRouteWithChildren
   ContentRoute: typeof ContentRoute
   CrmRoute: typeof CrmRoute
+  FireberryRoute: typeof FireberryRoute
   GoalsRoute: typeof GoalsRoute
   LoginRoute: typeof LoginRoute
   MeetingsRoute: typeof MeetingsRoute
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/goals'
       fullPath: '/goals'
       preLoaderRoute: typeof GoalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fireberry': {
+      id: '/fireberry'
+      path: '/fireberry'
+      fullPath: '/fireberry'
+      preLoaderRoute: typeof FireberryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/crm': {
@@ -339,6 +359,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientsRoute: ClientsRouteWithChildren,
   ContentRoute: ContentRoute,
   CrmRoute: CrmRoute,
+  FireberryRoute: FireberryRoute,
   GoalsRoute: GoalsRoute,
   LoginRoute: LoginRoute,
   MeetingsRoute: MeetingsRoute,
